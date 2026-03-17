@@ -1,0 +1,22 @@
+{
+    "name": "NuclearFalloutML.Runtime",
+    "rootNamespace": "NuclearFalloutML",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [
+        "CSharpNumerics.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.cesium.unity",
+            "expression": "1.0.0",
+            "define": "CESIUM_AVAILABLE"
+        }
+    ],
+    "noEngineReferences": false
+}
