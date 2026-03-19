@@ -113,18 +113,54 @@ Each asset is an independent **Unity Package** (UPM) with its own assembly defin
 │       ├── Visualization/          ← Unity rendering (Cesium, etc.)
 │       ├── UI/                     ← Runtime UI controllers
 │       └── Export/                 ← Export helpers
-└── Editor/
-    ├── [AssetName].Editor.asmdef   ← Editor assembly (references Runtime)
+├── Editor/
+│   ├── [AssetName].Editor.asmdef   ← Editor assembly (references Runtime)
+│   └── Scripts/
+│       └── *Editor.cs              ← Custom inspectors
+└── Demo/
+    ├── [AssetName].Demo.asmdef     ← Demo/test assembly (references Runtime + DLL)
     └── Scripts/
-        └── *Editor.cs              ← Custom inspectors
+        └── DemoSimulation.cs       ← Attach to GameObject, validates pipeline in Play Mode
 ```
 
 ### Assembly Reference Rules
 
 - `[AssetName].Runtime.asmdef` → references `CSharpNumerics.dll` (precompiled)
 - `[AssetName].Editor.asmdef` → references `[AssetName].Runtime`
+- `[AssetName].Demo.asmdef` → references `[AssetName].Runtime` + `CSharpNumerics.dll`
 - Assets do NOT reference each other (they are independent packages)
 - Optional platform SDKs (e.g., CesiumForUnity) are gated with `#if` defines via `versionDefines`
+- **`overrideReferences` must be `true`** in any `.asmdef` that lists `precompiledReferences`
+
+### CSharpNumerics Namespace Mapping
+
+These are the actual namespaces used in Unity scripts (not the marketing names):
+
+| Type | Actual Namespace |
+|------|-----------------|
+| `Vector` | `CSharpNumerics.Numerics.Objects` |
+| `Matrix` | `CSharpNumerics.Numerics.Objects` |
+| `KMeans` | `CSharpNumerics.ML.Clustering.Algorithms` |
+| `SilhouetteEvaluator` | `CSharpNumerics.ML.Clustering.Evaluators` |
+| `ClusteringGrid` | `CSharpNumerics.ML.Clustering` |
+| `RiskScenario` | `CSharpNumerics.Engines.GIS.Scenario` |
+| `ScenarioResult` | `CSharpNumerics.Engines.GIS.Scenario` |
+| `GeoGrid`, `GridSnapshot` | `CSharpNumerics.Engines.GIS.Grid` |
+| `ProbabilityMap`, `TimeAnimator`, `ClusterAnalysisResult` | `CSharpNumerics.Engines.GIS.Analysis` |
+| `PlumeSimulator`, `PlumeMode`, `ScenarioVariation` | `CSharpNumerics.Engines.GIS.Simulation` |
+| `MonteCarloScenarioResult` | `CSharpNumerics.Engines.GIS.Simulation` |
+| `StabilityClass` | `CSharpNumerics.Physics.Enums` |
+| `Materials` | `CSharpNumerics.Physics.Materials` |
+| `GeoCoordinate`, `Projection` | `CSharpNumerics.Engines.GIS.Coordinates` |
+| `MonteCarloSimulator` | `CSharpNumerics.Statistics.MonteCarlo` |
+
+### Testing an Asset
+
+Each asset includes a `Demo/` folder with a `DemoSimulation.cs` script:
+1. Create an empty GameObject in any scene
+2. Attach the `DemoSimulation` component
+3. Enter Play Mode — check the Console for validation output
+4. All steps should log `[Demo] ✓ ALL VALIDATION STEPS PASSED`
 
 ### Creating a New Asset
 

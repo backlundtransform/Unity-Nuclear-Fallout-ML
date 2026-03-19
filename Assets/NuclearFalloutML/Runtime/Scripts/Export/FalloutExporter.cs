@@ -21,8 +21,7 @@ using UnityEngine;
 
 using CSharpNumerics.Engines.GIS.Scenario;
 using CSharpNumerics.Engines.GIS.Analysis;
-using CSharpNumerics.Engines.GIS.Export;
-using NuclearFalloutML.Core;
+using CSharpNumerics.Numerics.Objects;
 
 namespace NuclearFalloutML.Export
 {
@@ -37,13 +36,12 @@ namespace NuclearFalloutML.Export
         /// Export probability grid to CSV for analysis in Python / R / Excel.
         /// CSharpNumerics does not include a CSV exporter, so we provide one here.
         /// </summary>
-        public static string ExportCsv(RiskScenarioResult result, int timeIndex = 0)
+        public static string ExportCsv(ScenarioResult result, int timeIndex = 0)
         {
             var probMap = result.ProbabilityMapAt(timeIndex: timeIndex);
-            var snapshots = result.Snapshots;
-            if (snapshots == null || snapshots.Count == 0) return "";
+            if (probMap == null) return "";
 
-            var grid = snapshots[0].Grid;
+            var grid = probMap.Grid;
             int cellCount = grid.CellCount;
 
             var sb = new StringBuilder();
@@ -57,7 +55,7 @@ namespace NuclearFalloutML.Export
 
                 sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
                     "{0},{1:F2},{2:F2},{3:F2},{4:E4}",
-                    i, pos.X, pos.Y, pos.Z, prob));
+                    i, pos.x, pos.y, pos.z, prob));
             }
 
             return sb.ToString();
@@ -68,7 +66,7 @@ namespace NuclearFalloutML.Export
         /// Delegates GeoJSON, CZML, and binary to CSharpNumerics;
         /// adds CSV from this helper.
         /// </summary>
-        public static void SaveAll(RiskScenarioResult result, string outputDir)
+        public static void SaveAll(ScenarioResult result, string outputDir)
         {
             Directory.CreateDirectory(outputDir);
 

@@ -5,7 +5,7 @@ using NuclearFalloutML.Core;
 using CSharpNumerics.Engines.GIS.Scenario;
 using CSharpNumerics.Engines.GIS.Analysis;
 using CSharpNumerics.Engines.GIS.Grid;
-using CSharpNumerics.Numerics;
+using CSharpNumerics.Numerics.Objects;
 
 namespace NuclearFalloutML.Visualization
 {
@@ -29,7 +29,7 @@ namespace NuclearFalloutML.Visualization
 
         private Texture2D _currentTexture;
         private GameObject _overlayInstance;
-        private RiskScenarioResult _riskResult;
+        private ScenarioResult _scenarioResult;
         private SimulationConfig _config;
         private int _currentTimeIndex;
 
@@ -43,10 +43,10 @@ namespace NuclearFalloutML.Visualization
         /// <summary>
         /// Initialize the renderer with simulation config and CSharpNumerics results.
         /// </summary>
-        public void Initialize(SimulationConfig config, RiskScenarioResult riskResult, int timeIndex = 0)
+        public void Initialize(SimulationConfig config, ScenarioResult scenarioResult, int timeIndex = 0)
         {
             _config = config;
-            _riskResult = riskResult;
+            _scenarioResult = scenarioResult;
             _currentTimeIndex = timeIndex;
 
             CreateOverlayTexture();
@@ -58,7 +58,7 @@ namespace NuclearFalloutML.Visualization
         /// </summary>
         public void UpdateVisualization()
         {
-            if (_riskResult == null) return;
+            if (_scenarioResult == null) return;
 
             switch (DisplayMode)
             {
@@ -96,36 +96,32 @@ namespace NuclearFalloutML.Visualization
 
         private void RenderProbabilityOverlay()
         {
-            var probMap = _riskResult.ProbabilityMapAt(timeIndex: _currentTimeIndex);
-            var snapshots = _riskResult.Snapshots;
-            if (snapshots == null || snapshots.Count == 0) return;
+            var probMap = _scenarioResult.ProbabilityMapAt(timeIndex: _currentTimeIndex);
+            if (probMap == null) return;
 
-            var grid = snapshots[0].Grid;
+            var grid = probMap.Grid;
             RenderFromGrid(grid, pos => probMap.At(pos), FalloutColorMapper.ProbabilityToColor);
         }
 
         private void RenderCumulativeOverlay()
         {
-            var snapshots = _riskResult.Snapshots;
-            if (snapshots == null || snapshots.Count == 0) return;
+            var grid = _scenarioResult.Grid;
+            if (grid == null) return;
 
-            var grid = snapshots[0].Grid;
             double timeSeconds = _config.TimeStartSeconds +
                 _currentTimeIndex * _config.TimeStepSeconds;
 
             RenderFromGrid(grid, pos =>
-                _riskResult.CumulativeProbabilityAt(pos, timeSeconds),
+                _scenarioResult.CumulativeProbabilityAt(pos, timeSeconds),
                 FalloutColorMapper.ProbabilityToColor);
         }
 
         private void RenderClusterOverlay()
         {
-            // Cluster visualization — use probability with distinct cluster coloring
-            var probMap = _riskResult.ProbabilityMapAt(timeIndex: _currentTimeIndex);
-            var snapshots = _riskResult.Snapshots;
-            if (snapshots == null || snapshots.Count == 0) return;
+            var probMap = _scenarioResult.ProbabilityMapAt(timeIndex: _currentTimeIndex);
+            if (probMap == null) return;
 
-            var grid = snapshots[0].Grid;
+            var grid = probMap.Grid;
             RenderFromGrid(grid, pos => probMap.At(pos),
                 val => FalloutColorMapper.ClusterToColor((int)(val * 10), 10));
         }
@@ -147,10 +143,10 @@ namespace NuclearFalloutML.Visualization
             for (int i = 0; i < cellCount; i++)
             {
                 var c = grid.CellCentre(i);
-                if (c.X < xMin) xMin = c.X;
-                if (c.X > xMax) xMax = c.X;
-                if (c.Y < yMin) yMin = c.Y;
-                if (c.Y > yMax) yMax = c.Y;
+                if (c.x < xMin) xMin = c.x;
+                if (c.x > xMax) xMax = c.x;
+                if (c.y < yMin) yMin = c.y;
+                if (c.y > yMax) yMax = c.y;
             }
 
             double xRange = xMax - xMin;
@@ -165,10 +161,10 @@ namespace NuclearFalloutML.Visualization
                 double val = valueFn(pos);
                 if (val < 1e-10) continue;
 
-                int tx = (int)(((pos.X - xMin) / xRange) * (_textureResolution - 1));
-                int ty = (int)(((pos.Y - yMin) / yRange) * (_textureResolution - 1));
-                tx = Math.Clamp(tx, 0, _textureResolution - 1);
-                ty = Math.Clamp(ty, 0, _textureResolution - 1);
+                int tx = (int)(((pos.x - xMin) / xRange) * (_textureResolution - 1));
+                int ty = (int)(((pos.y - yMin) / yRange) * (_textureResolution - 1));
+                tx = Mathf.Clamp(tx, 0, _textureResolution - 1);
+                ty = Mathf.Clamp(ty, 0, _textureResolution - 1);
 
                 pixels[ty * _textureResolution + tx] = colorFn(val);
             }
@@ -195,7 +191,7 @@ namespace NuclearFalloutML.Visualization
             if (_config == null) return;
 
 #if CESIUM_AVAILABLE
-            var georeference = FindFirstObjectByType<CesiumForUnity.CesiumGeoreference>();
+            var georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
             if (georeference != null)
             {
                 PositionOverlayOnGlobe(georeference);

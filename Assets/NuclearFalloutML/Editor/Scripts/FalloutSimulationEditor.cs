@@ -157,8 +157,7 @@ namespace NuclearFalloutML.Editor
             {
                 if (manager.IsRunning)
                 {
-                    if (GUILayout.Button("CANCEL SIMULATION", GUILayout.Height(40)))
-                        manager.CancelSimulation();
+                    EditorGUILayout.HelpBox("Simulation running...", MessageType.Info);
                 }
                 else
                 {
@@ -174,11 +173,11 @@ namespace NuclearFalloutML.Editor
             GUI.backgroundColor = Color.white;
 
             // Show cluster result if available
-            if (manager.ClusterResult != null)
+            if (manager.ScenarioResult?.ClusterAnalysis != null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.LabelField("CLUSTER RESULT", EditorStyles.boldLabel);
-                EditorGUILayout.LabelField($"Dominant Cluster: {manager.ClusterResult.DominantCluster}");
+                EditorGUILayout.LabelField($"Dominant Cluster: {manager.ScenarioResult.ClusterAnalysis.DominantCluster}");
             }
 
             if (GUI.changed)

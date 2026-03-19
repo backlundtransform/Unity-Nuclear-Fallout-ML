@@ -5,6 +5,7 @@ using NuclearFalloutML.Visualization;
 using NuclearFalloutML.Export;
 
 using CSharpNumerics.Engines.GIS.Scenario;
+using CSharpNumerics.Engines.GIS.Analysis;
 
 namespace NuclearFalloutML.UI
 {
@@ -54,7 +55,7 @@ namespace NuclearFalloutML.UI
         private void SetupDefaults()
         {
             if (_manager == null)
-                _manager = FindFirstObjectByType<FalloutSimulationManager>();
+                _manager = FindObjectOfType<FalloutSimulationManager>();
 
             if (_manager == null) return;
 
@@ -109,17 +110,17 @@ namespace NuclearFalloutML.UI
 
         private void OnCancelClicked()
         {
-            _manager?.CancelSimulation();
+            // Cancellation not currently supported
             if (_runButton != null) _runButton.interactable = true;
             if (_cancelButton != null) _cancelButton.interactable = false;
         }
 
         private void OnExportClicked()
         {
-            if (_manager?.RiskResult == null) return;
+            if (_manager?.ScenarioResult == null) return;
 
             string dir = System.IO.Path.Combine(Application.dataPath, "..", "FalloutExport");
-            FalloutExporter.SaveAll(_manager.RiskResult, dir);
+            FalloutExporter.SaveAll(_manager.ScenarioResult, dir);
             OnStatus($"Exported to: {dir}");
         }
 
@@ -185,7 +186,7 @@ namespace NuclearFalloutML.UI
             if (_cancelButton != null) _cancelButton.interactable = false;
         }
 
-        private void OnClusteringDone(ScenarioClusterResult clusterResult)
+        private void OnClusteringDone(ClusterAnalysisResult clusterResult)
         {
             if (_statsPanel != null) _statsPanel.SetActive(true);
 

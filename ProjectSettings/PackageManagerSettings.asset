@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!655991480 &1
+PackageManagerSettings:
+  serializedVersion: 2
+  m_EnablePreReleasePackages: 0
+  m_EnablePackageDependencies: 0
+  m_AdvancedSettingsExpanded: 1
+  m_ScopedRegistriesSettingsExpanded: 1
+  m_SeeAllPackageVersions: 0
+  m_ScopedRegistries: []
+  m_RegistryInfoDraft:
+    m_Modified: 0
+    m_Name:
+    m_Url:
+    m_Scopes: []
+    m_SelectedScopeIndex: 0
+  m_RegistryInfoOriginal:
+    m_Modified: 0
+    m_Name:
+    m_Url:
+    m_Scopes: []
+  m_UserSelectedRegistryName:
+  m_UserAddingNewScopedRegistry: 0

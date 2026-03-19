@@ -31,7 +31,7 @@
 using CSharpNumerics.Engines.GIS.Scenario;
 using CSharpNumerics.Engines.GIS.Analysis;
 using CSharpNumerics.Engines.GIS.Grid;
-using CSharpNumerics.Statistics.MonteCarlo;
+using CSharpNumerics.Numerics.Objects;
 
 namespace NuclearFalloutML.Core
 {
@@ -44,33 +44,11 @@ namespace NuclearFalloutML.Core
         /// Get a flattened array of probability values for a given time index.
         /// Useful for texture generation in CesiumFalloutRenderer.
         /// </summary>
-        public static double[] GetProbabilityArray(this RiskScenarioResult result, int timeIndex = 0)
+        public static double[] GetProbabilityArray(this ScenarioResult result, int timeIndex = 0)
         {
             var probMap = result.ProbabilityMapAt(timeIndex: timeIndex);
-            return GetProbabilityArrayFromMap(probMap, result);
-        }
-
-        /// <summary>
-        /// Extract probability values from a ProbabilityMap into a flat array
-        /// ordered by grid cell index.
-        /// </summary>
-        private static double[] GetProbabilityArrayFromMap(ProbabilityMap probMap,
-            RiskScenarioResult result)
-        {
-            var snapshots = result.Snapshots;
-            if (snapshots == null || snapshots.Count == 0) return new double[0];
-
-            var grid = snapshots[0].Grid;
-            int cellCount = grid.CellCount;
-            double[] values = new double[cellCount];
-
-            for (int i = 0; i < cellCount; i++)
-            {
-                var pos = grid.CellCentre(i);
-                values[i] = probMap.At(pos);
-            }
-
-            return values;
+            if (probMap == null) return new double[0];
+            return probMap.GetValues();
         }
     }
 }

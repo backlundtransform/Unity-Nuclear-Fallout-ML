@@ -4,7 +4,8 @@
   "displayName": "Nuclear Fallout ML Simulator",
   "description": "Monte Carlo nuclear fallout simulation with ML clustering, probability mapping, and Cesium visualization. Built on CSharpNumerics GeoEngine.",
   "unity": "2021.3",
-  "dependencies": {
+  "dependencies": {},
+  "optionalDependencies": {
     "com.cesium.unity": "1.0.0"
   },
   "keywords": [

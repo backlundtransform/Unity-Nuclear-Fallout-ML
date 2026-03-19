@@ -30,7 +30,7 @@ namespace NuclearFalloutML.Core
         /// </summary>
         public static GeoCoordinate Create(double latitude, double longitude, double altitude = 0)
         {
-            return new GeoCoordinate(latitude, longitude, altitude: altitude);
+            return new GeoCoordinate(latitude, longitude, altitude);
         }
 
         /// <summary>

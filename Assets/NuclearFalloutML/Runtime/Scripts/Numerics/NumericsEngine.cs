@@ -22,7 +22,7 @@
 // Website: https://csnumerics.com/
 // Author: Göran Bäcklund (backlundtransform)
 
-using CSharpNumerics.Numerics;
+using CSharpNumerics.Numerics.Objects;
 using CSharpNumerics.Statistics.MonteCarlo;
 
 namespace NuclearFalloutML.Numerics
