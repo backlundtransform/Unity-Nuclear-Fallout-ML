@@ -1,0 +1,3 @@
+[submodule "External/CSharpNumerics"]
+	path = External/CSharpNumerics
+	url = https://github.com/backlundtransform/CSharpNumerics.git
