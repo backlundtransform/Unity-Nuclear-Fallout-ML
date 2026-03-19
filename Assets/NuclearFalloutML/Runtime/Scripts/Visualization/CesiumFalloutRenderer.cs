@@ -191,7 +191,7 @@ namespace NuclearFalloutML.Visualization
             if (_config == null) return;
 
 #if CESIUM_AVAILABLE
-            var georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
+            var georeference = FindFirstObjectByType<CesiumForUnity.CesiumGeoreference>();
             if (georeference != null)
             {
                 PositionOverlayOnGlobe(georeference);

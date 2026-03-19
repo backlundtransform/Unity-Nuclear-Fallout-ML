@@ -55,7 +55,7 @@ namespace NuclearFalloutML.UI
         private void SetupDefaults()
         {
             if (_manager == null)
-                _manager = FindObjectOfType<FalloutSimulationManager>();
+                _manager = FindFirstObjectByType<FalloutSimulationManager>();
 
             if (_manager == null) return;
 
