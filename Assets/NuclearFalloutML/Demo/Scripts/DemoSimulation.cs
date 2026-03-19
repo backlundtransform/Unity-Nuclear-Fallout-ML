@@ -1,5 +1,6 @@
 using UnityEngine;
 using NuclearFalloutML.Core;
+using NuclearFalloutML.Visualization;
 
 using CSharpNumerics.Engines.GIS.Scenario;
 using CSharpNumerics.Engines.GIS.Grid;
@@ -14,11 +15,13 @@ using CSharpNumerics.Physics.Materials;
 namespace NuclearFalloutML.Demo
 {
     /// <summary>
-    /// Minimal demo that validates the CSharpNumerics pipeline compiles and runs.
-    /// Attach to any GameObject and enter Play Mode.
+    /// Demo that runs a CSharpNumerics fallout simulation and visualizes
+    /// the probability heatmap on a quad in the scene.
+    /// Attach to any GameObject → enter Play Mode → see the plume.
     ///
-    /// This does NOT require Cesium, UI, or any scene setup — just verifies
-    /// that the DLL, namespaces, and API calls are correct.
+    /// Controls:
+    ///   Left/Right arrow — step through time
+    ///   Space — toggle probability / cluster view
     /// </summary>
     public class DemoSimulation : MonoBehaviour
     {
@@ -27,38 +30,67 @@ namespace NuclearFalloutML.Demo
         [Range(10, 500)]
         public int iterations = 50;
 
+        [Tooltip("Texture resolution for the heatmap")]
+        [Range(64, 1024)]
+        public int textureResolution = 256;
+
         [Tooltip("Run automatically on Start")]
         public bool autoRun = true;
 
+        private ScenarioResult _result;
+        private Texture2D _heatmapTexture;
+        private GameObject _quad;
+        private int _timeIndex;
+        private int _maxTimeIndex;
+        private bool _showClusters;
+        private bool _running;
+
         private async void Start()
         {
-            if (autoRun) await RunDemo();
+            if (autoRun)
+            {
+                try
+                {
+                    await RunDemo();
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"[Demo] FAILED: {ex}");
+                }
+            }
+        }
+
+        private void Update()
+        {
+            if (_result == null) return;
+
+            bool changed = false;
+
+            if (Input.GetKeyDown(KeyCode.RightArrow) && _timeIndex < _maxTimeIndex - 1)
+            {
+                _timeIndex++;
+                changed = true;
+            }
+            else if (Input.GetKeyDown(KeyCode.LeftArrow) && _timeIndex > 0)
+            {
+                _timeIndex--;
+                changed = true;
+            }
+            else if (Input.GetKeyDown(KeyCode.Space))
+            {
+                _showClusters = !_showClusters;
+                changed = true;
+            }
+
+            if (changed) RenderHeatmap();
         }
 
         public async System.Threading.Tasks.Task RunDemo()
         {
-            Debug.Log("[Demo] Starting CSharpNumerics pipeline validation...");
+            _running = true;
+            Debug.Log("[Demo] Running Monte Carlo simulation...");
 
-            // ── Step 1: Deterministic single scenario ──────────────────
-            Debug.Log("[Demo] Step 1: Single deterministic scenario...");
-
-            var singleResult = RiskScenario
-                .ForGaussianPlume(5.0)
-                .FromSource(new Vector(0, 0, 50))
-                .WithWind(10, new Vector(1, 0, 0))
-                .WithStability(StabilityClass.D)
-                .WithMaterial(Materials.Radioisotope("Cs137"))
-                .OverGrid(new GeoGrid(-200, 200, -200, 200, 0, 50, 20))
-                .OverTime(0, 600, 60)
-                .RunSingle();
-
-            Debug.Log($"[Demo] Single scenario - Grid cells: {singleResult.Grid.CellCount}, " +
-                      $"Snapshots: {singleResult.Snapshots?.Count ?? 0}");
-
-            // ── Step 2: Monte Carlo (no clustering) ────────────────────
-            Debug.Log($"[Demo] Step 2: Monte Carlo ({iterations} iterations, no clustering)...");
-
-            var mcResult = await System.Threading.Tasks.Task.Run(() =>
+            _result = await System.Threading.Tasks.Task.Run(() =>
                 RiskScenario
                     .ForGaussianPlume(5.0)
                     .FromSource(new Vector(0, 0, 50))
@@ -70,63 +102,167 @@ namespace NuclearFalloutML.Demo
                         .WindDirectionJitter(15)
                         .EmissionRate(3, 7)
                         .SetStabilityWeights(c: 0.2, d: 0.6, e: 0.2))
-                    .OverGrid(new GeoGrid(-200, 200, -200, 200, 0, 50, 20))
-                    .OverTime(0, 600, 60)
-                    .RunMonteCarlo(iterations, seed: 42)
-                    .Build(threshold: 1e-6));
-
-            double p1 = mcResult.ProbabilityAt(new Vector(100, 0, 0), 300);
-            double cp1 = mcResult.CumulativeProbabilityAt(new Vector(100, 0, 0), 300);
-            var probMap = mcResult.ProbabilityMapAt(0);
-
-            Debug.Log($"[Demo] MC result - P(100,0,0 @ 300s)={p1:F4}, " +
-                      $"CumP={cp1:F4}, ProbMap cells={probMap?.CellCount ?? 0}");
-
-            // ── Step 3: Full pipeline with clustering ──────────────────
-            Debug.Log($"[Demo] Step 3: Full pipeline with KMeans clustering...");
-
-            var fullResult = await System.Threading.Tasks.Task.Run(() =>
-                RiskScenario
-                    .ForGaussianPlume(5.0)
-                    .FromSource(new Vector(0, 0, 50))
-                    .WithWind(10, new Vector(1, 0, 0))
-                    .WithStability(StabilityClass.D)
-                    .WithMaterial(Materials.Radioisotope("Cs137"))
-                    .WithVariation(v => v
-                        .WindSpeed(8, 12)
-                        .WindDirectionJitter(15)
-                        .EmissionRate(3, 7)
-                        .SetStabilityWeights(c: 0.2, d: 0.6, e: 0.2))
-                    .OverGrid(new GeoGrid(-200, 200, -200, 200, 0, 50, 20))
+                    .OverGrid(new GeoGrid(-500, 500, -500, 500, 0, 100, 20))
                     .OverTime(0, 600, 60)
                     .RunMonteCarlo(iterations, seed: 42)
                     .AnalyzeWith(new KMeans(), new SilhouetteEvaluator(), minK: 2, maxK: 4)
                     .Build(threshold: 1e-6));
 
-            Debug.Log($"[Demo] Full pipeline - Cluster analysis: " +
-                      $"Dominant={fullResult.ClusterAnalysis?.DominantCluster}, " +
-                      $"BestK={fullResult.ClusterAnalysis?.BestClusterCount}, " +
-                      $"Score={fullResult.ClusterAnalysis?.BestScore:F4}");
+            // Determine how many time steps are available
+            _maxTimeIndex = (int)((600 - 0) / 60) + 1;
+            _timeIndex = _maxTimeIndex / 2; // start at middle of simulation
 
-            // ── Step 4: Verify helper classes ──────────────────────────
-            Debug.Log("[Demo] Step 4: Verifying helper classes...");
+            Debug.Log($"[Demo] Simulation complete. {_result.Grid.CellCount} grid cells, " +
+                      $"{_maxTimeIndex} time steps.");
+            Debug.Log($"[Demo] Cluster analysis: K={_result.ClusterAnalysis?.BestClusterCount}, " +
+                      $"Score={_result.ClusterAnalysis?.BestScore:F4}");
 
-            var grid = GeoGridFactory.FromConfig(new SimulationConfig());
-            Debug.Log($"[Demo] GeoGridFactory: cells={grid.CellCount}");
+            // Create visualization
+            SetupCamera();
+            CreateQuad();
+            RenderHeatmap();
 
-            var coord = GeoCoordinateFactory.Create(55.605, 13.004);
-            Debug.Log($"[Demo] GeoCoordinate: lat={coord.Latitude}, lon={coord.Longitude}");
+            Debug.Log("[Demo] ✓ Visualization ready.");
+            Debug.Log("[Demo] Controls: Left/Right = time step, Space = toggle clusters");
 
-            var extensions = fullResult.GetProbabilityArray(0);
-            Debug.Log($"[Demo] GetProbabilityArray: length={extensions.Length}");
+            _running = false;
+        }
 
-            // ── Step 5: Export test ────────────────────────────────────
-            Debug.Log("[Demo] Step 5: Testing export...");
-            string exportDir = System.IO.Path.Combine(Application.dataPath, "..", "DemoExport");
-            Export.FalloutExporter.SaveAll(fullResult, exportDir);
+        private void SetupCamera()
+        {
+            var cam = Camera.main;
+            if (cam == null)
+            {
+                var camObj = new GameObject("DemoCamera");
+                cam = camObj.AddComponent<Camera>();
+            }
 
-            Debug.Log("[Demo] ✓ ALL VALIDATION STEPS PASSED");
-            Debug.Log($"[Demo] Export files written to: {exportDir}");
+            cam.transform.position = new UnityEngine.Vector3(0, 15, 0);
+            cam.transform.rotation = UnityEngine.Quaternion.Euler(90f, 0f, 0f);
+            cam.orthographic = true;
+            cam.orthographicSize = 6f;
+            cam.backgroundColor = new Color(0.1f, 0.1f, 0.15f);
+            cam.clearFlags = CameraClearFlags.SolidColor;
+        }
+
+        private void CreateQuad()
+        {
+            _quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            _quad.name = "FalloutHeatmap";
+            _quad.transform.SetParent(transform);
+            _quad.transform.position = UnityEngine.Vector3.zero;
+            _quad.transform.rotation = UnityEngine.Quaternion.Euler(90f, 0f, 0f);
+            _quad.transform.localScale = new UnityEngine.Vector3(10f, 10f, 1f);
+
+            var col = _quad.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            _heatmapTexture = new Texture2D(textureResolution, textureResolution,
+                TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            var mat = new Material(Shader.Find("Sprites/Default"));
+            mat.mainTexture = _heatmapTexture;
+            _quad.GetComponent<Renderer>().material = mat;
+        }
+
+        private void RenderHeatmap()
+        {
+            if (_result == null || _heatmapTexture == null) return;
+
+            var probMap = _result.ProbabilityMapAt(_timeIndex);
+            if (probMap == null) return;
+
+            var grid = probMap.Grid;
+            int res = textureResolution;
+            var pixels = new Color[res * res];
+
+            // Background
+            var bg = new Color(0.05f, 0.05f, 0.08f, 1f);
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = bg;
+
+            // Compute grid bounds
+            double xMin = double.MaxValue, xMax = double.MinValue;
+            double yMin = double.MaxValue, yMax = double.MinValue;
+
+            int cellCount = grid.CellCount;
+            for (int i = 0; i < cellCount; i++)
+            {
+                var c = grid.CellCentre(i);
+                if (c.x < xMin) xMin = c.x;
+                if (c.x > xMax) xMax = c.x;
+                if (c.y < yMin) yMin = c.y;
+                if (c.y > yMax) yMax = c.y;
+            }
+
+            double xRange = xMax - xMin;
+            double yRange = yMax - yMin;
+            if (xRange < 1e-6 || yRange < 1e-6) return;
+
+            // Paint cells
+            int totalClusters = _result.ClusterAnalysis?.BestClusterCount ?? 3;
+            for (int i = 0; i < cellCount; i++)
+            {
+                var pos = grid.CellCentre(i);
+                double val = probMap.At(pos);
+                if (val < 1e-10) continue;
+
+                Color color;
+                if (_showClusters)
+                    color = FalloutColorMapper.ClusterToColor((int)(val * totalClusters * 10) % totalClusters, totalClusters);
+                else
+                    color = FalloutColorMapper.ProbabilityToColor(val);
+
+                // Map grid position to texture pixel — spread across a small radius
+                int cx = (int)(((pos.x - xMin) / xRange) * (res - 1));
+                int cy = (int)(((pos.y - yMin) / yRange) * (res - 1));
+
+                int radius = Mathf.Max(1, res / (int)System.Math.Sqrt(cellCount));
+                for (int dy = -radius; dy <= radius; dy++)
+                {
+                    for (int dx = -radius; dx <= radius; dx++)
+                    {
+                        int px = Mathf.Clamp(cx + dx, 0, res - 1);
+                        int py = Mathf.Clamp(cy + dy, 0, res - 1);
+                        int idx = py * res + px;
+                        if (color.a > pixels[idx].a)
+                            pixels[idx] = color;
+                    }
+                }
+            }
+
+            _heatmapTexture.SetPixels(pixels);
+            _heatmapTexture.Apply();
+
+            double timeSec = _timeIndex * 60;
+            string mode = _showClusters ? "CLUSTERS" : "PROBABILITY";
+            Debug.Log($"[Demo] Rendered t={timeSec}s [{mode}] (time step {_timeIndex}/{_maxTimeIndex - 1})");
+        }
+
+        private void OnGUI()
+        {
+            if (_running)
+            {
+                GUI.Label(new Rect(10, 10, 400, 30),
+                    "<size=18><color=white>Running simulation...</color></size>",
+                    new GUIStyle { richText = true });
+                return;
+            }
+
+            if (_result == null) return;
+
+            double timeSec = _timeIndex * 60;
+            string mode = _showClusters ? "Cluster Map" : "Probability Map";
+
+            GUI.Label(new Rect(10, 10, 500, 30),
+                $"<size=16><color=white>{mode}  |  t = {timeSec}s  |  Step {_timeIndex}/{_maxTimeIndex - 1}</color></size>",
+                new GUIStyle { richText = true });
+            GUI.Label(new Rect(10, 35, 500, 25),
+                "<size=12><color=#aaa>← → Time  |  Space = Toggle mode  |  MC iterations: " + iterations + "</color></size>",
+                new GUIStyle { richText = true });
         }
     }
 }
