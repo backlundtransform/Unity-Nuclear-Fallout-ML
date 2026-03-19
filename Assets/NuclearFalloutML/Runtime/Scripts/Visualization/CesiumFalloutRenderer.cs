@@ -258,7 +258,7 @@ namespace NuclearFalloutML.Visualization
         {
             var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
             quad.transform.SetParent(transform);
-            quad.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            quad.transform.rotation = UnityEngine.Quaternion.Euler(90f, 0f, 0f);
             quad.name = "FalloutOverlay";
 
             var collider = quad.GetComponent<Collider>();

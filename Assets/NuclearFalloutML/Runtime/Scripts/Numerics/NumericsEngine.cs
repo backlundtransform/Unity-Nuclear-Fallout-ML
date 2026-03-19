@@ -22,6 +22,7 @@
 // Website: https://csnumerics.com/
 // Author: Göran Bäcklund (backlundtransform)
 
+using System;
 using CSharpNumerics.Numerics.Objects;
 using CSharpNumerics.Statistics.MonteCarlo;
 
@@ -39,9 +40,10 @@ namespace NuclearFalloutML.Numerics
         /// Wraps CSharpNumerics.Statistics.MonteCarlo.MonteCarloSimulator.
         /// </summary>
         public static MonteCarloResult RunScalarMonteCarlo(
-            System.Func<double> sampleFunc, int iterations)
+            Func<RandomGenerator, double> trialFunc, int iterations)
         {
-            return MonteCarloSimulator.Run(sampleFunc, iterations);
+            var simulator = new MonteCarloSimulator();
+            return simulator.Run(trialFunc, iterations);
         }
 
         /// <summary>

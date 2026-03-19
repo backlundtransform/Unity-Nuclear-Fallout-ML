@@ -1,0 +1,5 @@
+﻿<Solution>
+  <Project Path="NuclearFalloutML.Runtime.csproj" />
+  <Project Path="NuclearFalloutML.Editor.csproj" />
+  <Project Path="NuclearFalloutML.Demo.csproj" />
+</Solution>
