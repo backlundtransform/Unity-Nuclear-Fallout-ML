@@ -25,6 +25,7 @@
 using System;
 using CSharpNumerics.Numerics.Objects;
 using CSharpNumerics.Statistics.MonteCarlo;
+using CSharpNumerics.Statistics.Random;
 
 namespace NuclearFalloutML.Numerics
 {

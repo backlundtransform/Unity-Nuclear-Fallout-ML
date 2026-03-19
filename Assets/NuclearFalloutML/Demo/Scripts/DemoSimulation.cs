@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using NuclearFalloutML.Core;
 using NuclearFalloutML.Visualization;
 
@@ -39,7 +40,7 @@ namespace NuclearFalloutML.Demo
 
         private ScenarioResult _result;
         private Texture2D _heatmapTexture;
-        private GameObject _quad;
+        private RawImage _rawImage;
         private int _timeIndex;
         private int _maxTimeIndex;
         private bool _showClusters;
@@ -66,21 +67,44 @@ namespace NuclearFalloutML.Demo
 
             bool changed = false;
 
-            if (Input.GetKeyDown(KeyCode.RightArrow) && _timeIndex < _maxTimeIndex - 1)
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (UnityEngine.Input.GetKeyDown(KeyCode.RightArrow) && _timeIndex < _maxTimeIndex - 1)
             {
                 _timeIndex++;
                 changed = true;
             }
-            else if (Input.GetKeyDown(KeyCode.LeftArrow) && _timeIndex > 0)
+            else if (UnityEngine.Input.GetKeyDown(KeyCode.LeftArrow) && _timeIndex > 0)
             {
                 _timeIndex--;
                 changed = true;
             }
-            else if (Input.GetKeyDown(KeyCode.Space))
+            else if (UnityEngine.Input.GetKeyDown(KeyCode.Space))
             {
                 _showClusters = !_showClusters;
                 changed = true;
             }
+#else
+            // New Input System or both — use Keyboard
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb != null)
+            {
+                if (kb.rightArrowKey.wasPressedThisFrame && _timeIndex < _maxTimeIndex - 1)
+                {
+                    _timeIndex++;
+                    changed = true;
+                }
+                else if (kb.leftArrowKey.wasPressedThisFrame && _timeIndex > 0)
+                {
+                    _timeIndex--;
+                    changed = true;
+                }
+                else if (kb.spaceKey.wasPressedThisFrame)
+                {
+                    _showClusters = !_showClusters;
+                    changed = true;
+                }
+            }
+#endif
 
             if (changed) RenderHeatmap();
         }
@@ -94,6 +118,7 @@ namespace NuclearFalloutML.Demo
                 RiskScenario
                     .ForGaussianPlume(5.0)
                     .FromSource(new Vector(0, 0, 50))
+                    .WithMode(PlumeMode.Transient, releaseSeconds: 30)
                     .WithWind(10, new Vector(1, 0, 0))
                     .WithStability(StabilityClass.D)
                     .WithMaterial(Materials.Radioisotope("Cs137"))
@@ -102,15 +127,15 @@ namespace NuclearFalloutML.Demo
                         .WindDirectionJitter(15)
                         .EmissionRate(3, 7)
                         .SetStabilityWeights(c: 0.2, d: 0.6, e: 0.2))
-                    .OverGrid(new GeoGrid(-500, 500, -500, 500, 0, 100, 20))
-                    .OverTime(0, 600, 60)
+                    .OverGrid(new GeoGrid(-500, 8000, -2000, 2000, 0, 100, 50))
+                    .OverTime(0, 600, 30)
                     .RunMonteCarlo(iterations, seed: 42)
                     .AnalyzeWith(new KMeans(), new SilhouetteEvaluator(), minK: 2, maxK: 4)
                     .Build(threshold: 1e-6));
 
             // Determine how many time steps are available
-            _maxTimeIndex = (int)((600 - 0) / 60) + 1;
-            _timeIndex = _maxTimeIndex / 2; // start at middle of simulation
+            _maxTimeIndex = (int)((600 - 0) / 30) + 1;
+            _timeIndex = 0; // start at beginning to watch the puff emerge
 
             Debug.Log($"[Demo] Simulation complete. {_result.Grid.CellCount} grid cells, " +
                       $"{_maxTimeIndex} time steps.");
@@ -118,8 +143,8 @@ namespace NuclearFalloutML.Demo
                       $"Score={_result.ClusterAnalysis?.BestScore:F4}");
 
             // Create visualization
-            SetupCamera();
-            CreateQuad();
+            EnsureCamera();
+            CreateHeatmapUI();
             RenderHeatmap();
 
             Debug.Log("[Demo] ✓ Visualization ready.");
@@ -128,34 +153,38 @@ namespace NuclearFalloutML.Demo
             _running = false;
         }
 
-        private void SetupCamera()
+        private void EnsureCamera()
         {
-            var cam = Camera.main;
-            if (cam == null)
+            // Unity Game view needs at least one active camera
+            if (Camera.main == null && FindObjectsByType<Camera>(FindObjectsSortMode.None).Length == 0)
             {
                 var camObj = new GameObject("DemoCamera");
-                cam = camObj.AddComponent<Camera>();
+                var cam = camObj.AddComponent<Camera>();
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.08f, 0.08f, 0.12f);
+                cam.cullingMask = 0; // render nothing in 3D, just clear the screen
             }
-
-            cam.transform.position = new UnityEngine.Vector3(0, 15, 0);
-            cam.transform.rotation = UnityEngine.Quaternion.Euler(90f, 0f, 0f);
-            cam.orthographic = true;
-            cam.orthographicSize = 6f;
-            cam.backgroundColor = new Color(0.1f, 0.1f, 0.15f);
-            cam.clearFlags = CameraClearFlags.SolidColor;
         }
 
-        private void CreateQuad()
+        private void CreateHeatmapUI()
         {
-            _quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            _quad.name = "FalloutHeatmap";
-            _quad.transform.SetParent(transform);
-            _quad.transform.position = UnityEngine.Vector3.zero;
-            _quad.transform.rotation = UnityEngine.Quaternion.Euler(90f, 0f, 0f);
-            _quad.transform.localScale = new UnityEngine.Vector3(10f, 10f, 1f);
+            // Create a Screen Space Overlay canvas — works with any render pipeline
+            var canvasObj = new GameObject("DemoCanvas");
+            var canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100;
 
-            var col = _quad.GetComponent<Collider>();
-            if (col != null) Destroy(col);
+            // Heatmap image — stretched to fill the screen
+            var imgObj = new GameObject("HeatmapImage");
+            imgObj.transform.SetParent(canvasObj.transform, false);
+            _rawImage = imgObj.AddComponent<RawImage>();
+            _rawImage.color = Color.white; // don't tint the texture
+
+            var rt = _rawImage.rectTransform;
+            rt.anchorMin = UnityEngine.Vector2.zero;
+            rt.anchorMax = UnityEngine.Vector2.one;
+            rt.offsetMin = UnityEngine.Vector2.zero;
+            rt.offsetMax = UnityEngine.Vector2.zero;
 
             _heatmapTexture = new Texture2D(textureResolution, textureResolution,
                 TextureFormat.RGBA32, false)
@@ -163,10 +192,9 @@ namespace NuclearFalloutML.Demo
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
+            _rawImage.texture = _heatmapTexture;
 
-            var mat = new Material(Shader.Find("Sprites/Default"));
-            mat.mainTexture = _heatmapTexture;
-            _quad.GetComponent<Renderer>().material = mat;
+            Debug.Log($"[Demo] Canvas created, RawImage size={rt.rect}, texture={textureResolution}x{textureResolution}");
         }
 
         private void RenderHeatmap()
@@ -174,13 +202,17 @@ namespace NuclearFalloutML.Demo
             if (_result == null || _heatmapTexture == null) return;
 
             var probMap = _result.ProbabilityMapAt(_timeIndex);
-            if (probMap == null) return;
+            if (probMap == null)
+            {
+                Debug.LogWarning($"[Demo] ProbabilityMapAt({_timeIndex}) returned null");
+                return;
+            }
 
             var grid = probMap.Grid;
             int res = textureResolution;
             var pixels = new Color[res * res];
 
-            // Background
+            // Dark background (fully opaque so it's visible)
             var bg = new Color(0.05f, 0.05f, 0.08f, 1f);
             for (int i = 0; i < pixels.Length; i++) pixels[i] = bg;
 
@@ -200,21 +232,40 @@ namespace NuclearFalloutML.Demo
 
             double xRange = xMax - xMin;
             double yRange = yMax - yMin;
-            if (xRange < 1e-6 || yRange < 1e-6) return;
+            if (xRange < 1e-6 || yRange < 1e-6)
+            {
+                Debug.LogWarning($"[Demo] Grid range too small: x={xRange}, y={yRange}");
+                return;
+            }
 
-            // Paint cells
+            // Paint cells — first pass: find max value for normalization
+            double maxVal = 0;
+            for (int i = 0; i < cellCount; i++)
+            {
+                double v = probMap.At(grid.CellCentre(i));
+                if (v > maxVal) maxVal = v;
+            }
+            if (maxVal < 1e-20) maxVal = 1; // avoid division by zero
+
             int totalClusters = _result.ClusterAnalysis?.BestClusterCount ?? 3;
+            int paintedCells = 0;
             for (int i = 0; i < cellCount; i++)
             {
                 var pos = grid.CellCentre(i);
                 double val = probMap.At(pos);
                 if (val < 1e-10) continue;
 
+                // Normalize to 0–1 so the color mapper produces visible colors
+                double normalized = val / maxVal;
+
                 Color color;
                 if (_showClusters)
-                    color = FalloutColorMapper.ClusterToColor((int)(val * totalClusters * 10) % totalClusters, totalClusters);
+                    color = FalloutColorMapper.ClusterToColor((int)(normalized * totalClusters * 10) % totalClusters, totalClusters);
                 else
-                    color = FalloutColorMapper.ProbabilityToColor(val);
+                    color = FalloutColorMapper.ProbabilityToColor(normalized);
+
+                color.a = 1f;
+                paintedCells++;
 
                 // Map grid position to texture pixel — spread across a small radius
                 int cx = (int)(((pos.x - xMin) / xRange) * (res - 1));
@@ -228,8 +279,7 @@ namespace NuclearFalloutML.Demo
                         int px = Mathf.Clamp(cx + dx, 0, res - 1);
                         int py = Mathf.Clamp(cy + dy, 0, res - 1);
                         int idx = py * res + px;
-                        if (color.a > pixels[idx].a)
-                            pixels[idx] = color;
+                        pixels[idx] = color;
                     }
                 }
             }
@@ -237,9 +287,15 @@ namespace NuclearFalloutML.Demo
             _heatmapTexture.SetPixels(pixels);
             _heatmapTexture.Apply();
 
+            // Save to disk so we can verify the texture visually
+            string pngPath = System.IO.Path.Combine(Application.dataPath, "..", "DemoHeatmap.png");
+            System.IO.File.WriteAllBytes(pngPath, _heatmapTexture.EncodeToPNG());
+
             double timeSec = _timeIndex * 60;
             string mode = _showClusters ? "CLUSTERS" : "PROBABILITY";
-            Debug.Log($"[Demo] Rendered t={timeSec}s [{mode}] (time step {_timeIndex}/{_maxTimeIndex - 1})");
+            Debug.Log($"[Demo] Rendered t={timeSec}s [{mode}] step {_timeIndex}/{_maxTimeIndex - 1} — " +
+                      $"{cellCount} cells, {paintedCells} painted, maxVal={maxVal:E3}, grid x=[{xMin:F0},{xMax:F0}] y=[{yMin:F0},{yMax:F0}]");
+            Debug.Log($"[Demo] Texture saved to: {pngPath}");
         }
 
         private void OnGUI()

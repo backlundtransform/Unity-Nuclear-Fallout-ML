@@ -2,7 +2,9 @@
     "name": "NuclearFalloutML.Demo",
     "rootNamespace": "NuclearFalloutML.Demo",
     "references": [
-        "NuclearFalloutML.Runtime"
+        "NuclearFalloutML.Runtime",
+        "Unity.ugui",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
