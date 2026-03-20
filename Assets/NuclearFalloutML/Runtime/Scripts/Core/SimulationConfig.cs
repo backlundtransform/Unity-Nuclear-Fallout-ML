@@ -63,7 +63,7 @@ namespace NuclearFalloutML.Core
         [Header("Monte Carlo Settings")]
         [Tooltip("Number of Monte Carlo scenarios to simulate")]
         [Range(10, 100000)]
-        public int MonteCarloIterations = 1000;
+        public int MonteCarloIterations = 20;
 
         [Tooltip("Random seed for reproducibility (0 = random)")]
         public int RandomSeed = 42;
@@ -101,20 +101,20 @@ namespace NuclearFalloutML.Core
 
         [Tooltip("Grid cell step size (meters)")]
         [Range(1f, 100f)]
-        public float GridStepMeters = 10f;
+        public float GridStepMeters = 50f;
 
         [Header("Time Settings")]
         [Tooltip("Simulation start time (seconds)")]
         public double TimeStartSeconds = 0;
 
         [Tooltip("Simulation end time (seconds)")]
-        public double TimeEndSeconds = 3600;
+        public double TimeEndSeconds = 600;
 
         [Tooltip("Time step (seconds)")]
         public double TimeStepSeconds = 60;
 
         [Header("Plume Mode")]
-        public PlumeModeOption PlumeMode = PlumeModeOption.SteadyState;
+        public PlumeModeOption PlumeMode = PlumeModeOption.Transient;
 
         [Tooltip("Puff release duration (seconds, only for Transient mode)")]
         public double PuffReleaseSeconds = 10;
