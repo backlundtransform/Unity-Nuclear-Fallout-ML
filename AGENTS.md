@@ -1,5 +1,17 @@
 # CSharpNumerics.Visualization — Agent Guide
 
+## Project Goals
+
+This repository exists to serve four goals:
+
+1. **Build Unity assets powered by CSharpNumerics.** Each asset wraps a CSharpNumerics capability (GIS simulation, fluid dynamics, orbital mechanics, etc.) with Unity visualization, UI, and export. CSharpNumerics does all computation; Unity handles rendering and interaction.
+
+2. **Test new assets quickly.** Every asset includes a `Demo/` folder with a self-contained `DemoSimulation.cs` that validates the full CSharpNumerics pipeline in Play Mode — no scene setup, no manual steps. If it compiles and the demo runs, the asset works.
+
+3. **Produce marketing-ready demos.** Each demo should look good enough to screenshot, screen-record, or embed in a product page. Visual quality matters — heatmaps with clear color gradients, time-stepping, interactive controls, informative overlays. These demos sell both the asset and CSharpNumerics itself.
+
+4. **Add new assets frictionlessly.** The repo structure, assembly definitions, and conventions are designed so a new asset can be scaffolded and running in minutes. Copy the pattern, plug in a different CSharpNumerics engine, get a working demo fast.
+
 ## Project Overview
 
 This repository contains **Unity assets for scientific visualization**, built on [CSharpNumerics](https://csnumerics.com/) — an open-source C# scientific computing library. Each asset demonstrates a real-world application (nuclear fallout simulation, fluid dynamics, orbital mechanics, etc.) and serves as a showcase for the CSharpNumerics library.
@@ -33,18 +45,26 @@ CSharpNumerics.Visualization/
     │   ├── Runtime/
     │   │   ├── NuclearFalloutML.Runtime.asmdef
     │   │   └── Scripts/
-    │   └── Editor/
-    │       ├── NuclearFalloutML.Editor.asmdef
+    │   ├── Editor/
+    │   │   ├── NuclearFalloutML.Editor.asmdef
+    │   │   └── Scripts/
+    │   └── Demo/
+    │       ├── NuclearFalloutML.Demo.asmdef
     │       └── Scripts/
+    │           └── DemoSimulation.cs  ← Attach to GameObject, enter Play Mode
     │
     └── [AssetName]/                   ← Future assets follow same pattern
         ├── package.json
         ├── Runtime/
         │   ├── [AssetName].Runtime.asmdef
         │   └── Scripts/
-        └── Editor/
-            ├── [AssetName].Editor.asmdef
+        ├── Editor/
+        │   ├── [AssetName].Editor.asmdef
+        │   └── Scripts/
+        └── Demo/
+            ├── [AssetName].Demo.asmdef
             └── Scripts/
+                └── DemoSimulation.cs
 ```
 
 ## CSharpNumerics Submodule
@@ -156,11 +176,14 @@ These are the actual namespaces used in Unity scripts (not the marketing names):
 
 ### Testing an Asset
 
-Each asset includes a `Demo/` folder with a `DemoSimulation.cs` script:
+Each asset includes a `Demo/` folder with a `DemoSimulation.cs` MonoBehaviour:
 1. Create an empty GameObject in any scene
 2. Attach the `DemoSimulation` component
-3. Enter Play Mode — check the Console for validation output
-4. All steps should log `[Demo] ✓ ALL VALIDATION STEPS PASSED`
+3. Enter Play Mode
+4. The demo auto-runs: simulates, creates a Canvas + heatmap, and enables interactive controls
+5. Console logs show pipeline status and validation results
+
+Demo scripts should be **zero-setup** — they create their own camera, canvas, and visuals at runtime. No scene objects, materials, or prefabs required.
 
 ### Creating a New Asset
 
@@ -172,6 +195,7 @@ Each asset includes a `Demo/` folder with a `DemoSimulation.cs` script:
        "name": "[AssetName].Runtime",
        "rootNamespace": "[AssetName]",
        "references": [],
+       "overrideReferences": true,
        "precompiledReferences": ["CSharpNumerics.dll"],
        "versionDefines": [
            {
@@ -191,7 +215,23 @@ Each asset includes a `Demo/` folder with a `DemoSimulation.cs` script:
        "includePlatforms": ["Editor"]
    }
    ```
-5. Implement scripts following the Core → Visualization → UI → Export pattern
+5. Create `Demo/` folder with `[AssetName].Demo.asmdef`:
+   ```json
+   {
+       "name": "[AssetName].Demo",
+       "rootNamespace": "[AssetName].Demo",
+       "references": ["[AssetName].Runtime", "Unity.ugui", "Unity.InputSystem"],
+       "overrideReferences": true,
+       "precompiledReferences": ["CSharpNumerics.dll"]
+   }
+   ```
+6. Create `Demo/Scripts/DemoSimulation.cs` — self-contained MonoBehaviour that:
+   - Runs the CSharpNumerics pipeline in `async Start()`
+   - Creates a Canvas + RawImage for visualization (no scene setup needed)
+   - Ensures a camera exists
+   - Supports interactive controls (keyboard input via New Input System)
+   - Logs results to Console
+7. Implement Runtime scripts following the Core → Visualization → UI → Export pattern
 
 ## Design Principles
 
