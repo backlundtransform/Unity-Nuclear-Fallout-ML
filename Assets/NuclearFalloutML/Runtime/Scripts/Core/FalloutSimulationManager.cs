@@ -74,15 +74,8 @@ namespace NuclearFalloutML
                 var sourcePos = new Vector(0, 0, Config.StackHeightMeters);
                 var windDir = new Vector(Config.WindDirectionX, Config.WindDirectionY, 0);
 
-                // Parse K-Means cluster counts for min/max range
-                int[] kCounts = Config.KMeansClusterCounts
-                    .Split(',')
-                    .Select(s => int.TryParse(s.Trim(), out int v) ? v : 3)
-                    .OrderBy(k => k)
-                    .ToArray();
-
-                int minK = kCounts.Length > 0 ? kCounts[0] : 2;
-                int maxK = kCounts.Length > 1 ? kCounts[kCounts.Length - 1] : minK;
+                int minK = 3;
+                int maxK = 5;
 
                 // Build the full pipeline using the RiskScenario fluent API
                 OnStatusUpdate?.Invoke("Configuring RiskScenario pipeline...");
@@ -123,7 +116,7 @@ namespace NuclearFalloutML
                         new SilhouetteEvaluator(),
                         minK: minK,
                         maxK: maxK)
-                    .Build(threshold: Config.ProbabilityThreshold));
+                    .Build(threshold: 1e-6));
 
                 OnSimulationProgress?.Invoke(0.85f);
                 OnStatusUpdate?.Invoke("Pipeline complete. Preparing visualization...");

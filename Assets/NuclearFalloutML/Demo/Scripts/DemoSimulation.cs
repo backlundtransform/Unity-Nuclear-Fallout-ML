@@ -219,8 +219,6 @@ namespace NuclearFalloutML.Demo
             float swD = config.StabilityWeightD;
             float swE = config.StabilityWeightE;
             string isotope = config.Radioisotope;
-            double threshold = config.ProbabilityThreshold;
-
             _result = await System.Threading.Tasks.Task.Run(() =>
             {
                 var clusterGrid = new ClusteringGrid()
@@ -243,7 +241,7 @@ namespace NuclearFalloutML.Demo
                     .OverTime(tStart, tEnd, tStep)
                     .RunMonteCarlo(iters, seed: seed)
                     .AnalyzeWith(clusterGrid, new SilhouetteEvaluator())
-                    .Build(threshold: threshold);
+                    .Build(threshold: 1e-6);
             });
 
             _maxTimeIndex = (int)((tEnd - tStart) / tStep) + 1;
@@ -312,13 +310,13 @@ namespace NuclearFalloutML.Demo
             double lonMin = srcLon + _gxMin / metersPerDegLon;
             double lonMax = srcLon + _gxMax / metersPerDegLon;
 
-            // Choose zoom level: aim for ~8-12 tiles across for crisp detail
+            // Choose zoom level: aim for ~4-6 tiles across (fast load, sufficient detail)
             double lonSpan = lonMax - lonMin;
             int zoom = 1;
             for (int z = 18; z >= 1; z--)
             {
                 double tilesAcross = lonSpan / (360.0 / (1 << z));
-                if (tilesAcross <= 12) { zoom = z; break; }
+                if (tilesAcross <= 6) { zoom = z; break; }
             }
 
             // Convert lat/lon bounds to tile coordinates
@@ -342,33 +340,40 @@ namespace NuclearFalloutML.Demo
             for (int i = 0; i < fallbackPixels.Length; i++) fallbackPixels[i] = fallback;
             stitched.SetPixels(fallbackPixels);
 
+            // Fire all tile requests in parallel
+            var requests = new System.Collections.Generic.List<(UnityWebRequest req, int tx, int ty)>();
             for (int ty = tyMin; ty <= tyMax; ty++)
             {
                 for (int tx = txMin; tx <= txMax; tx++)
                 {
                     string url = $"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png";
-                    using (var req = UnityWebRequestTexture.GetTexture(url))
-                    {
-                        req.SetRequestHeader("User-Agent", "CSharpNumerics.Visualization/1.0 (Unity Demo)");
-                        yield return req.SendWebRequest();
-
-                        if (req.result == UnityWebRequest.Result.Success)
-                        {
-                            var tile = DownloadHandlerTexture.GetContent(req);
-                            int destX = (tx - txMin) * 256;
-                            // Tile Y increases downward, texture Y increases upward
-                            int destY = (tyMax - ty) * 256;
-                            stitched.SetPixels(destX, destY, 256, 256, tile.GetPixels());
-                            Object.Destroy(tile);
-                        }
-                        else
-                        {
-                            Debug.LogWarning($"[Demo] Failed to fetch tile {zoom}/{tx}/{ty}: {req.error}");
-                        }
-                    }
-                    // Respect OSM tile usage policy: small delay between requests
-                    yield return new WaitForSeconds(0.1f);
+                    var req = UnityWebRequestTexture.GetTexture(url);
+                    req.SetRequestHeader("User-Agent", "CSharpNumerics.Visualization/1.0 (Unity Demo)");
+                    req.SendWebRequest();
+                    requests.Add((req, tx, ty));
                 }
+            }
+
+            // Wait for all to complete and stitch
+            foreach (var (req, tx, ty) in requests)
+            {
+                while (!req.isDone)
+                    yield return null;
+
+                if (req.result == UnityWebRequest.Result.Success)
+                {
+                    var tile = DownloadHandlerTexture.GetContent(req);
+                    int destX = (tx - txMin) * 256;
+                    // Tile Y increases downward, texture Y increases upward
+                    int destY = (tyMax - ty) * 256;
+                    stitched.SetPixels(destX, destY, 256, 256, tile.GetPixels());
+                    Object.Destroy(tile);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Demo] Failed to fetch tile {zoom}/{tx}/{ty}: {req.error}");
+                }
+                req.Dispose();
             }
 
             stitched.Apply();
@@ -379,7 +384,7 @@ namespace NuclearFalloutML.Demo
             double tileLonMin = TileXToLon(txMin, zoom);
             double tileLonMax = TileXToLon(txMax + 1, zoom);
 
-            int mapRes = 1024;
+            int mapRes = 512;
             _mapTexture = new Texture2D(mapRes, mapRes, TextureFormat.RGB24, false)
             {
                 filterMode = FilterMode.Bilinear,

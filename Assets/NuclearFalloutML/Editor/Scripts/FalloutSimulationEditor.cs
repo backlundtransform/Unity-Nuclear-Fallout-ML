@@ -12,7 +12,7 @@ namespace NuclearFalloutML.Editor
         private bool _showVariation = false;
         private bool _showGrid = false;
         private bool _showTime = false;
-        private bool _showClustering = false;
+
 
         public override void OnInspectorGUI()
         {
@@ -130,17 +130,7 @@ namespace NuclearFalloutML.Editor
                 EditorGUI.indentLevel--;
             }
 
-            // Clustering
-            _showClustering = EditorGUILayout.Foldout(_showClustering, "Clustering (K-Means)");
-            if (_showClustering)
-            {
-                EditorGUI.indentLevel++;
-                manager.Config.KMeansClusterCounts = EditorGUILayout.TextField(
-                    "K values (csv)", manager.Config.KMeansClusterCounts);
-                manager.Config.ProbabilityThreshold = EditorGUILayout.DoubleField(
-                    "Prob Threshold", manager.Config.ProbabilityThreshold);
-                EditorGUI.indentLevel--;
-            }
+
 
             // Export
             EditorGUILayout.Space();

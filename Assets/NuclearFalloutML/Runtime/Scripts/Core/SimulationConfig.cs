@@ -119,14 +119,6 @@ namespace NuclearFalloutML.Core
         [Tooltip("Puff release duration (seconds, only for Transient mode)")]
         public double PuffReleaseSeconds = 10;
 
-        [Header("Clustering")]
-        [Tooltip("K-Means cluster counts to evaluate (comma-separated, e.g. 3,5)")]
-        public string KMeansClusterCounts = "3,5";
-
-        [Header("Probability Thresholds")]
-        [Tooltip("Concentration threshold for exceedance probability")]
-        public double ProbabilityThreshold = 1e-6;
-
         [Header("Export")]
         [Tooltip("Output directory relative to project root")]
         public string ExportDirectory = "FalloutExport";
