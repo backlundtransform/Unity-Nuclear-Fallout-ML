@@ -12,6 +12,8 @@ using CSharpNumerics.ML.Clustering;
 using CSharpNumerics.ML.Clustering.Algorithms;
 using CSharpNumerics.ML.Clustering.Evaluators;
 using CSharpNumerics.ML.Clustering.Results;
+using CSharpNumerics.ML.Scalers;
+using CSharpNumerics.ML.DimensionalityReduction.Algorithms;
 using CSharpNumerics.Numerics.Objects;
 using CSharpNumerics.Physics.Enums;
 using CSharpNumerics.Physics.Materials;
@@ -221,11 +223,11 @@ namespace NuclearFalloutML.Demo
             string isotope = config.Radioisotope;
             _result = await System.Threading.Tasks.Task.Run(() =>
             {
+                Debug.Log("[Demo] Building scenario pipeline...");
                 var clusterGrid = new ClusteringGrid()
-                    .AddModel<KMeans>(g => g.Add("K", 2, 3, 4))
-                    .AddModel<DBSCAN>(g => g.Add("Epsilon", 0.5, 1.0).Add("MinPoints", 5))
-                    .AddModel<AgglomerativeClustering>(g => g.Add("K", 2, 3).Add("Linkage", LinkageType.Ward));
-                return RiskScenario
+                    .AddModel<KMeans>(g => g.Add("K", 2, 3))
+                    .AddModel<DBSCAN>(g => g.Add("Epsilon", 0.5, 1.0).Add("MinPoints", 3));
+                var scenario = RiskScenario
                     .ForGaussianPlume(emRate)
                     .FromSource(new Vector(0, 0, srcAlt))
                     .WithWind(ws, new Vector(wdx, wdy, 0))
@@ -238,10 +240,13 @@ namespace NuclearFalloutML.Demo
                         .EmissionRate(erMin, erMax)
                         .SetStabilityWeights(c: swC, d: swD, e: swE))
                     .OverGrid(new GeoGrid(xMin, xMax, yMin, yMax, 0, zMax, cellSize))
-                    .OverTime(tStart, tEnd, tStep)
-                    .RunMonteCarlo(iters, seed: seed)
-                    .AnalyzeWith(clusterGrid, new SilhouetteEvaluator())
-                    .Build(threshold: 1e-6);
+                    .OverTime(tStart, tEnd, tStep);
+                Debug.Log("[Demo] Starting Monte Carlo...");
+                var mc = scenario.RunMonteCarlo(iters, seed: seed);
+                Debug.Log("[Demo] Monte Carlo done. Starting ML clustering...");
+                var analyzed = mc.AnalyzeWith(clusterGrid, new SilhouetteEvaluator());
+                Debug.Log("[Demo] Clustering done. Building result...");
+                return analyzed.Build(threshold: 1e-6);
             });
 
             _maxTimeIndex = (int)((tEnd - tStart) / tStep) + 1;
@@ -447,7 +452,7 @@ namespace NuclearFalloutML.Demo
 
             for (int i = 0; i < h; i++)
             {
-                float t = 1f - (float)i / (h - 1); // top = high
+                float t = (float)i / (h - 1); // pixel 0 = bottom of texture = low, pixel h-1 = top = high
                 Color c;
                 if (useLogScale)
                     c = FalloutColorMapper.DoseToColor(t, 1.0);
