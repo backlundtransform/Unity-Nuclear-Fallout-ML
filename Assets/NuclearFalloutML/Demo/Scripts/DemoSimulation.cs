@@ -244,7 +244,7 @@ namespace NuclearFalloutML.Demo
                 Debug.Log("[Demo] Starting Monte Carlo...");
                 var mc = scenario.RunMonteCarlo(iters, seed: seed);
                 Debug.Log("[Demo] Monte Carlo done. Starting ML clustering...");
-                var analyzed = mc.AnalyzeWith(clusterGrid, new SilhouetteEvaluator());
+                var analyzed = mc.AnalyzeWith(clusterGrid, new CalinskiHarabaszEvaluator());
                 Debug.Log("[Demo] Clustering done. Building result...");
                 return analyzed.Build(threshold: 1e-6);
             });
@@ -797,7 +797,7 @@ namespace NuclearFalloutML.Demo
             if (best != null)
             {
                 lines.Add($"<b>★ Best:</b> {best.AlgorithmName}  K={best.ClusterCount}  " +
-                          $"Score={GetScore(best, "Silhouette")}  " +
+                          $"Score={GetScore(best, "CalinskiHarabasz")}  " +
                           $"Duration={best.Duration.TotalMilliseconds:F0}ms");
                 if (best.Parameters != null)
                 {
@@ -817,7 +817,7 @@ namespace NuclearFalloutML.Demo
                 if (rank >= 10) break;
                 string algo = r.AlgorithmName ?? "?";
                 string k = r.ClusterCount.ToString();
-                string score = GetScore(r, "Silhouette");
+                string score = GetScore(r, "CalinskiHarabasz");
                 string dur = $"{r.Duration.TotalMilliseconds:F0}ms";
                 lines.Add($"ROW|{rank}|{algo}|{k}|{score}|{dur}");
                 rank++;
