@@ -23,6 +23,9 @@ DemoHeatmap.png
 # Unity auto-generated package settings
 ProjectSettings/Packages/
 
+# Resolved packages (restored automatically from manifest.json)
+Packages/com.unity.asset-store-tools/
+
 # IDE
 .vs/
 .vscode/

@@ -1,0 +1,213 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss\fcharset0 Calibri;}{\f1\fmodern\fcharset0 Consolas;}}
+{\colortbl;\red0\green0\blue0;\red0\green102\blue204;\red128\green128\blue128;\red0\green128\blue0;}
+\viewkind4\uc1\pard\keepn\sb480\sa120\b\f0\fs44 Nuclear Fallout ML Simulator v2.0\b0\fs24\par
+\pard\sb60\sa60 Author: Goran Backlund\line Built on CSharpNumerics GeoEngine (csnumerics.com)\par
+\pard\sb240\sa60\b\fs28 Table of Contents\b0\fs24\par
+\pard\li360\sb60\sa30 1. Overview\par
+2. Requirements\par
+3. Installation\par
+4. Quick Start (Step-by-Step Tutorial)\par
+5. Demo Scene Guide\par
+6. Interactive Controls\par
+7. Configuration Parameters\par
+8. Script Reference\par
+\pard\li720\sb30\sa30 8.1 SimulationConfig\par
+8.2 FalloutSimulationManager\par
+8.3 DemoSimulation\par
+8.4 CesiumFalloutRenderer\par
+8.5 FalloutColorMapper\par
+8.6 FalloutExporter\par
+8.7 SimulationUIController\par
+\pard\li360\sb60\sa30 9. Export Formats\par
+10. Physics Model\par
+11. CSharpNumerics API Reference\par
+12. Troubleshooting\par
+13. License\par
+\pard\sb60\sa60\par
+\pard\keepn\sb360\sa120\b\fs32 1. Overview\b0\fs24\par
+\pard\sb60\sa60 Nuclear Fallout ML Simulator is a Unity asset for Monte Carlo nuclear fallout simulation with ML clustering, probability mapping, and optional Cesium 3D globe visualization.\par
+\pard\sb60\sa60\b Pipeline:\b0  Physics (Gaussian Plume/Puff) \u8594? Monte Carlo (N scenarios) \u8594? ML Clustering (K-Means / ClusteringGrid) \u8594? Probability Map \u8594? Export (GeoJSON / CZML / CSV)\par
+\pard\sb60\sa60 All computation is handled by CSharpNumerics. This Unity asset provides visualization, UI, and export integration.\par
+\pard\keepn\sb360\sa120\b\fs32 2. Requirements\b0\fs24\par
+\pard\li360\sb30\sa30\bullet  Unity 2021.3 or newer\par
+\bullet  CSharpNumerics.dll (included in Assets/Plugins/CSharpNumerics/)\par
+\bullet  Optional: Cesium for Unity (com.cesium.unity) for 3D globe visualization\par
+\pard\keepn\sb360\sa120\b\fs32 3. Installation\b0\fs24\par
+\pard\sb60\sa60\b Step 1:\b0  Import the package into your Unity project via the Asset Store or by importing the .unitypackage file.\par
+\pard\sb60\sa60\b Step 2:\b0  Verify that \f1 Assets/Plugins/CSharpNumerics/CSharpNumerics.dll\f0  is present. If not, build it from the included source or download from NuGet.\par
+\pard\sb60\sa60\b Step 3:\b0  Open the demo scene at \f1 NuclearFalloutML/Demo/Scenes/FalloutDemo.unity\f0  and enter Play Mode to verify installation.\par
+\pard\keepn\sb360\sa120\b\fs32 4. Quick Start (Step-by-Step Tutorial)\b0\fs24\par
+\pard\sb120\sa60\b Method A: Using the Demo Scene (Recommended)\b0\par
+\pard\li360\sb30\sa30 1. Open \f1 NuclearFalloutML/Demo/Scenes/FalloutDemo.unity\f0\par
+2. Select the "Fallout Simulation" GameObject in the Hierarchy\par
+3. In the Inspector, adjust parameters under Simulation Config (source coordinates, wind, MC iterations, etc.)\par
+4. Press Play \u8212? the simulation runs automatically and displays a probability heatmap\par
+5. Use the interactive controls (see Section 6) to explore results\par
+\pard\sb120\sa60\b Method B: Adding to Your Own Scene\b0\par
+\pard\li360\sb30\sa30 1. Create an empty GameObject in your scene\par
+2. Add the \f1 DemoSimulation\f0  component (Add Component \u8594? NuclearFalloutML.Demo \u8594? DemoSimulation)\par
+3. Configure parameters in the Inspector\par
+4. Enter Play Mode \u8212? the demo auto-creates its own Camera, Canvas, and heatmap visualization\par
+\pard\sb120\sa60\b Method C: Production Setup with Manager\b0\par
+\pard\li360\sb30\sa30 1. Add a \f1 FalloutSimulationManager\f0  component to a GameObject\par
+2. Add a \f1 CesiumFalloutRenderer\f0  component (requires Cesium for Unity installed)\par
+3. Configure parameters via the custom Inspector\par
+4. Enter Play Mode and click "Run Simulation"\par
+5. Results are visualized on the Cesium globe and exported to the configured directory\par
+\pard\keepn\sb360\sa120\b\fs32 5. Demo Scene Guide\b0\fs24\par
+\pard\sb60\sa60 The included demo scene (\f1 FalloutDemo.unity\f0 ) contains:\par
+\pard\li360\sb30\sa30\bullet  \b Main Camera\b0  \u8212? Standard camera (the demo may reposition it at runtime)\par
+\bullet  \b Directional Light\b0  \u8212? Scene lighting for visual quality\par
+\bullet  \b Fallout Simulation\b0  \u8212? GameObject with the DemoSimulation component pre-configured\par
+\pard\sb60\sa60 When you press Play, the DemoSimulation component:\par
+\pard\li360\sb30\sa30 1. Builds a CSharpNumerics RiskScenario pipeline\par
+2. Runs Monte Carlo simulation with N scenarios\par
+3. Performs ML clustering analysis (K-Means with multiple K values)\par
+4. Creates a full-screen Canvas with a probability heatmap overlay on an OpenStreetMap background\par
+5. Displays a color legend and real-time statistics\par
+6. Exports results to GeoJSON, CZML, and CSV in the configured export directory\par
+\pard\sb60\sa60 No manual setup is required. The demo is fully self-contained.\par
+\pard\keepn\sb360\sa120\b\fs32 6. Interactive Controls\b0\fs24\par
+\pard\sb60\sa60 While the demo is running in Play Mode:\par
+\pard\li360\sb30\sa30\bullet  \b Left/Right Arrow\b0  \u8212? Step through time indices (view different time snapshots)\par
+\bullet  \b Space\b0  \u8212? Play/pause automatic time advancement (0.5 seconds per step)\par
+\bullet  \b C\b0  \u8212? Cycle view mode: Probability \u8594? Concentration \u8594? Activity \u8594? Dose \u8594? Clusters\par
+\bullet  \b M\b0  \u8212? Toggle ML statistics panel (shows clustering pipeline rankings)\par
+\bullet  \b Up/Down Arrow\b0  \u8212? Adjust heatmap overlay opacity\par
+\pard\keepn\sb360\sa120\b\fs32 7. Configuration Parameters\b0\fs24\par
+\pard\sb60\sa60 All parameters are exposed in the Unity Inspector via the SimulationConfig class.\par
+\pard\sb120\sa60\b Source Location (WGS84)\b0\par
+\pard\li360\sb30\sa30\bullet  \b SourceLatitude\b0  (double, -90 to 90, default: 55.605) \u8212? Event latitude\par
+\bullet  \b SourceLongitude\b0  (double, -180 to 180, default: 13.004) \u8212? Event longitude\par
+\bullet  \b SourceAltitudeMeters\b0  (double, default: 50) \u8212? Source altitude in meters\par
+\pard\sb120\sa60\b Source Term\b0\par
+\pard\li360\sb30\sa30\bullet  \b EmissionRateKgPerS\b0  (double, default: 5.0) \u8212? Mass emission rate in kg/s\par
+\bullet  \b StackHeightMeters\b0  (float, 0-2000, default: 50) \u8212? Effective release height in meters\par
+\bullet  \b Radioisotope\b0  (string, default: "Cs137") \u8212? Material type (Cs137, I131, Sr90)\par
+\pard\sb120\sa60\b Atmospheric Conditions\b0\par
+\pard\li360\sb30\sa30\bullet  \b WindSpeedMs\b0  (float, 0.5-50, default: 10) \u8212? Mean wind speed in m/s\par
+\bullet  \b WindDirectionX\b0  (float, default: 1) \u8212? Wind direction X component (east)\par
+\bullet  \b WindDirectionY\b0  (float, default: 0) \u8212? Wind direction Y component (north)\par
+\bullet  \b Stability\b0  (enum, default: D_Neutral) \u8212? Pasquill-Gifford stability class (A-F)\par
+\pard\sb120\sa60\b Monte Carlo Settings\b0\par
+\pard\li360\sb30\sa30\bullet  \b MonteCarloIterations\b0  (int, 10-100000, default: 20) \u8212? Number of scenarios to simulate\par
+\bullet  \b RandomSeed\b0  (int, default: 42) \u8212? Seed for reproducibility (0 = random)\par
+\pard\sb120\sa60\b Scenario Variation\b0\par
+\pard\li360\sb30\sa30\bullet  \b WindSpeedVariationMin/Max\b0  (float) \u8212? Wind speed variation range for MC\par
+\bullet  \b WindDirectionJitterDeg\b0  (float, 0-90, default: 15) \u8212? Direction jitter sigma in degrees\par
+\bullet  \b EmissionRateVariationMin/Max\b0  (double) \u8212? Emission rate variation range\par
+\bullet  \b StabilityWeightC/D/E\b0  (float, 0-1) \u8212? Stability class probability weights (should sum to ~1)\par
+\pard\sb120\sa60\b Grid Settings\b0\par
+\pard\li360\sb30\sa30\bullet  \b GridExtentMeters\b0  (float, default: 500) \u8212? Half-extent from source in meters\par
+\bullet  \b GridAltitudeMaxMeters\b0  (float, default: 100) \u8212? Maximum altitude in meters\par
+\bullet  \b GridStepMeters\b0  (float, 1-100, default: 50) \u8212? Grid cell size in meters\par
+\pard\sb120\sa60\b Time Settings\b0\par
+\pard\li360\sb30\sa30\bullet  \b TimeStartSeconds\b0  (double, default: 0) \u8212? Simulation start time\par
+\bullet  \b TimeEndSeconds\b0  (double, default: 600) \u8212? Simulation end time\par
+\bullet  \b TimeStepSeconds\b0  (double, default: 60) \u8212? Time step duration\par
+\pard\sb120\sa60\b Plume Mode\b0\par
+\pard\li360\sb30\sa30\bullet  \b PlumeMode\b0  (enum: SteadyState / Transient, default: Transient)\par
+\bullet  \b PuffReleaseSeconds\b0  (double, default: 10) \u8212? Puff release duration (Transient mode only)\par
+\pard\sb120\sa60\b Export\b0\par
+\pard\li360\sb30\sa30\bullet  \b ExportDirectory\b0  (string, default: "FalloutExport") \u8212? Output directory relative to project root\par
+\pard\keepn\sb360\sa120\b\fs32 8. Script Reference\b0\fs24\par
+\pard\sb60\sa60 All scripts use the CSharpNumerics library for computation. Unity scripts provide configuration, visualization, and export wrappers.\par
+\pard\keepn\sb240\sa60\b\fs28 8.1 SimulationConfig\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Core\line\b File:\b0  Runtime/Scripts/Core/SimulationConfig.cs\par
+\pard\sb60\sa60 A [Serializable] class containing all simulation parameters. Exposed in the Unity Inspector with [Header], [Range], and [Tooltip] attributes for ease of use. See Section 7 for all fields.\par
+\pard\keepn\sb240\sa60\b\fs28 8.2 FalloutSimulationManager\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Core\line\b File:\b0  Runtime/Scripts/Core/FalloutSimulationManager.cs\par
+\pard\sb60\sa60 MonoBehaviour that orchestrates the full CSharpNumerics RiskScenario pipeline.\par
+\pard\sb60\sa30\b Public Methods:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 RunSimulation()\f0  \u8212? Starts the async simulation pipeline\par
+\pard\sb60\sa30\b Public Properties:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 bool IsRunning\f0  \u8212? Whether simulation is currently executing\par
+\bullet  \f1 ScenarioResult ScenarioResult\f0  \u8212? The completed result object\par
+\pard\sb60\sa30\b Events:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 OnSimulationProgress(float)\f0  \u8212? Progress callback (0-1)\par
+\bullet  \f1 OnStatusUpdate(string)\f0  \u8212? Status message callback\par
+\bullet  \f1 OnClusteringComplete()\f0  \u8212? Fired when ML clustering finishes\par
+\pard\keepn\sb240\sa60\b\fs28 8.3 DemoSimulation\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Demo\line\b File:\b0  Demo/Scripts/DemoSimulation.cs\par
+\pard\sb60\sa60 Self-contained MonoBehaviour that runs the complete pipeline and creates a runtime visualization. Attach to any GameObject and enter Play Mode. Creates its own Camera, Canvas, and heatmap at runtime.\par
+\pard\sb60\sa30\b Public Fields:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 SimulationConfig config\f0  \u8212? Simulation parameters (Inspector)\par
+\bullet  \f1 int textureResolution\f0  \u8212? Heatmap texture size (64-2048, default: 512)\par
+\bullet  \f1 bool autoRun\f0  \u8212? Whether to run automatically on Start\par
+\pard\keepn\sb240\sa60\b\fs28 8.4 CesiumFalloutRenderer\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Visualization\line\b File:\b0  Runtime/Scripts/Visualization/CesiumFalloutRenderer.cs\par
+\pard\sb60\sa60 Renders fallout results as a 3D globe overlay using Cesium for Unity. Requires the optional Cesium for Unity package (com.cesium.unity).\par
+\pard\sb60\sa30\b Public Methods:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 Initialize(SimulationConfig, ScenarioResult, int timeIndex)\f0  \u8212? Set up the renderer\par
+\bullet  \f1 UpdateVisualization()\f0  \u8212? Refresh the visualization\par
+\bullet  \f1 SetTimeIndex(int)\f0  \u8212? Change the displayed time step\par
+\pard\sb60\sa30\b Enum:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 FalloutDisplayMode\f0  \u8212? Probability, CumulativeProbability, ClusterMap\par
+\pard\keepn\sb240\sa60\b\fs28 8.5 FalloutColorMapper\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Visualization\line\b File:\b0  Runtime/Scripts/Visualization/FalloutColorMapper.cs\par
+\pard\sb60\sa60 Static utility class providing color mapping functions.\par
+\pard\sb60\sa30\b Static Methods:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 Color ProbabilityToColor(double prob)\f0  \u8212? Maps probability (0-1) to green-yellow-red gradient\par
+\bullet  \f1 Color DoseToColor(double doseMSv, double maxDose)\f0  \u8212? Maps dose to blue-cyan-green-yellow-red (log scale)\par
+\bullet  \f1 Color ClusterToColor(int label, int totalClusters)\f0  \u8212? Maps cluster label to a distinct color\par
+\pard\keepn\sb240\sa60\b\fs28 8.6 FalloutExporter\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.Export\line\b File:\b0  Runtime/Scripts/Export/FalloutExporter.cs\par
+\pard\sb60\sa60 Static utility class for exporting simulation results.\par
+\pard\sb60\sa30\b Static Methods:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 string ExportCsv(ScenarioResult result, int timeIndex)\f0  \u8212? Returns CSV text\par
+\bullet  \f1 void SaveAll(ScenarioResult result, string outputDir)\f0  \u8212? Exports all formats to directory\par
+\pard\keepn\sb240\sa60\b\fs28 8.7 SimulationUIController\b0\fs24\par
+\pard\sb60\sa30\b Namespace:\b0  NuclearFalloutML.UI\line\b File:\b0  Runtime/Scripts/UI/SimulationUIController.cs\par
+\pard\sb60\sa60 Runtime UI controller that binds Inspector fields to runtime UI input fields. Provides ready-made input fields for latitude, longitude, wind speed, wind direction, MC iterations, emission rate, stack height, stability class, and display mode. Includes Run, Cancel, and Export buttons, and a progress bar.\par
+\pard\keepn\sb360\sa120\b\fs32 9. Export Formats\b0\fs24\par
+\pard\li360\sb30\sa30\bullet  \b GeoJSON\b0  \u8212? Probability contour polygons for GIS tools (QGIS, Mapbox, ArcGIS)\par
+\bullet  \b CZML\b0  \u8212? Cesium globe time-dynamic visualization format\par
+\bullet  \b Binary\b0  \u8212? Unity binary format for fast runtime data loading\par
+\bullet  \b CSV\b0  \u8212? Full grid data (index, x, y, z, probability) for external analysis\par
+\pard\keepn\sb360\sa120\b\fs32 10. Physics Model\b0\fs24\par
+\pard\sb60\sa60 The CSharpNumerics PlumeSimulator implements the Gaussian Plume/Puff atmospheric dispersion model:\par
+\pard\sb120\sa120\qc\i C(x,y,0) = Q / (pi * sigma_y * sigma_z * u) * exp(-y\super 2\nosupersub  / 2*sigma_y\super 2\nosupersub ) * exp(-H\super 2\nosupersub  / 2*sigma_z\super 2\nosupersub )\i0\par
+\pard\sb60\sa60 Where:\par
+\pard\li360\sb30\sa30\bullet  Q = emission rate (kg/s)\par
+\bullet  sigma_y, sigma_z = dispersion coefficients (determined by stability class)\par
+\bullet  u = wind speed (m/s)\par
+\bullet  H = effective stack height (m)\par
+\pard\sb60\sa60 Two modes are supported:\par
+\pard\li360\sb30\sa30\bullet  \b SteadyState\b0  \u8212? Continuous emission, time-independent concentration\par
+\bullet  \b Transient\b0  \u8212? Puff release with configurable duration, time-dependent spreading\par
+\pard\keepn\sb360\sa120\b\fs32 11. CSharpNumerics API Reference\b0\fs24\par
+\pard\sb60\sa60 The simulation pipeline uses the CSharpNumerics RiskScenario fluent API:\par
+\pard\sb60\sa30\f1\fs20 var result = RiskScenario\line     .ForGaussianPlume(emissionRate)\line     .FromSource(position)\line     .WithWind(speed, direction)\line     .WithStability(StabilityClass.D)\line     .WithMaterial(Materials.Radioisotope("Cs137"))\line     .WithVariation(v => v\line         .WindSpeed(min, max)\line         .WindDirectionJitter(degrees)\line         .EmissionRate(min, max)\line         .SetStabilityWeights(d: 0.6, c: 0.2, e: 0.2))\line     .OverGrid(geoGrid)\line     .OverTime(startSec, endSec, stepSec)\line     .RunMonteCarlo(iterations, seed)\line     .AnalyzeWith(clusteringGrid, evaluator)\line     .Build(threshold: 1e-6);\f0\fs24\par
+\pard\sb120\sa60\b Key Namespaces:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 CSharpNumerics.Engines.GIS.Scenario\f0  \u8212? RiskScenario, RiskScenarioResult\par
+\bullet  \f1 CSharpNumerics.Engines.GIS.Simulation\f0  \u8212? PlumeSimulator, PlumeMode\par
+\bullet  \f1 CSharpNumerics.Engines.GIS.Analysis\f0  \u8212? ProbabilityMap, ScenarioClusterResult\par
+\bullet  \f1 CSharpNumerics.Engines.GIS.Grid\f0  \u8212? GeoGrid, GridSnapshot\par
+\bullet  \f1 CSharpNumerics.Engines.GIS.Export\f0  \u8212? GeoJsonExporter, CesiumExporter\par
+\bullet  \f1 CSharpNumerics.Physics.Enums\f0  \u8212? StabilityClass (A\endash F)\par
+\bullet  \f1 CSharpNumerics.Physics.Materials\f0  \u8212? Materials.Radioisotope()\par
+\bullet  \f1 CSharpNumerics.ML\f0  \u8212? ClusteringGrid, KMeans, SilhouetteEvaluator\par
+\bullet  \f1 CSharpNumerics.Numerics.Objects\f0  \u8212? Vector, Matrix\par
+\bullet  \f1 CSharpNumerics.Statistics.MonteCarlo\f0  \u8212? MonteCarloSimulator\par
+\pard\sb120\sa60\b Querying Results:\b0\par
+\pard\li360\sb30\sa30\bullet  \f1 result.ProbabilityAt(position, timeSeconds)\f0  \u8212? Query probability at a point\par
+\bullet  \f1 result.ProbabilityMapAt(timeIndex)\f0  \u8212? Get probability grid for a time step\par
+\bullet  \f1 result.ClusterAnalysis.DominantCluster\f0  \u8212? Get the dominant cluster\par
+\bullet  \f1 result.ExportGeoJson(path)\f0  \u8212? Export to GeoJSON\par
+\bullet  \f1 result.ExportCesium(path)\f0  \u8212? Export to CZML\par
+\bullet  \f1 result.ExportUnity(path)\f0  \u8212? Export to Unity binary format\par
+\pard\keepn\sb360\sa120\b\fs32 12. Troubleshooting\b0\fs24\par
+\pard\sb120\sa60\b Problem: "CSharpNumerics not found" compiler error\b0\par
+\pard\li360\sb30\sa30 Solution: Verify that CSharpNumerics.dll exists at Assets/Plugins/CSharpNumerics/CSharpNumerics.dll. If missing, rebuild from source or download from NuGet.\par
+\pard\sb120\sa60\b Problem: Demo shows black screen\b0\par
+\pard\li360\sb30\sa30 Solution: Check the Console for error messages. The simulation runs asynchronously and may take a few seconds to complete. Ensure MonteCarloIterations is not set too high (start with 20 for testing).\par
+\pard\sb120\sa60\b Problem: Cesium visualization not working\b0\par
+\pard\li360\sb30\sa30 Solution: Cesium for Unity (com.cesium.unity) must be installed separately. The CesiumFalloutRenderer requires #CESIUM_AVAILABLE define which is automatically set via versionDefines when Cesium is detected.\par
+\pard\sb120\sa60\b Problem: Export files not created\b0\par
+\pard\li360\sb30\sa30 Solution: Check the ExportDirectory field in SimulationConfig. The directory is relative to the project root. Ensure the simulation completed successfully before exporting.\par
+\pard\sb120\sa60\b Problem: Heatmap appears empty or all green\b0\par
+\pard\li360\sb30\sa30 Solution: Increase the GridExtentMeters to cover a larger area, or increase EmissionRateKgPerS. The ProbabilityThreshold (default: 1e-6) filters out very low values.\par
+\pard\keepn\sb360\sa120\b\fs32 13. License\b0\fs24\par
+\pard\sb60\sa60 This asset is licensed under the Unity Asset Store EULA. CSharpNumerics is available under the MIT License.\par
+\pard\sb240\sa60\cf3\i\fs20 Nuclear Fallout ML Simulator v2.0 \u8212? Documentation generated for Unity Asset Store submission.\cf0\i0\fs24\par
+}
