@@ -15,43 +15,66 @@
 
 ---
 
-## 2. CSharpNumerics Quantum Engine API:er (bekräftade)
+## 2. CSharpNumerics Quantum Engine API:er (v2.8.0 — bekräftade)
 
-*Submodule uppdaterad till `489b51b` (BlochVector). Alla namespaces verifierade.*
+*Submodule uppdaterad till `d476a24` (v2.8.0). Alla namespaces verifierade.*
 
 | Namespace | Klasser |
 |-----------|---------|
 | `CSharpNumerics.Engines.Quantum` | `QuantumCircuit`, `QuantumInstruction`, `QuantumSimulator`, `QuantumState` |
-| `CSharpNumerics.Physics.Quantum` | `QuantumGate` (abstract), `BlochVector` |
-| `CSharpNumerics.Physics.Quantum` | `HadamardGate`, `PauliXGate`, `PauliZGate`, `SGate`, `TGate` |
-| `CSharpNumerics.Physics.Quantum` | `RxGate`, `RyGate`, `RzGate` (rotation gates med θ-parameter) |
-| `CSharpNumerics.Physics.Quantum` | `CNOTGate`, `CZGate`, `SWAPGate` (multi-qubit) |
-| `CSharpNumerics.ML.ReinforcementLearning` | `IEnvironment`, `IAgent` — RL-policies för error correction (framtid) |
+| `CSharpNumerics.Engines.Quantum` | `QuantumCircuitBuilder` (fluent API), `NoisyQuantumSimulator` |
+| `CSharpNumerics.Engines.Quantum` | `QuantumEnvironment` (RL-miljö, implementerar `IEnvironment`) |
+| `CSharpNumerics.Engines.Quantum.Algorithms` | `GroverSearch`, `ShorAlgorithm`, `QFT`, `InverseQFT`, `QPE` |
+| `CSharpNumerics.Engines.Quantum.ErrorCorrection` | `ErrorCorrectionSimulator`, `SyndromeDecoder` |
+| `CSharpNumerics.Physics.Quantum` | `QuantumGate` (abstract), `BlochVector`, `QuantumFidelity` |
+| `CSharpNumerics.Physics.Quantum` | 7 single-qubit: `HadamardGate`, `PauliX/Y/ZGate`, `SGate`, `TGate`, `PhaseGate` |
+| `CSharpNumerics.Physics.Quantum` | 3 rotation: `RxGate`, `RyGate`, `RzGate` |
+| `CSharpNumerics.Physics.Quantum` | 5 multi-qubit: `CNOTGate`, `CZGate`, `CPhaseGate`, `SWAPGate`, `ToffoliGate`, `FredkinGate` |
+| `CSharpNumerics.Physics.Quantum` | Special: `ControlledGate`, `ModularMultiplyGate`, `PhaseOracle` |
+| `CSharpNumerics.Physics.Quantum.NoiseModels` | `INoiseChannel`, `DepolarizingNoise`, `DephasingNoise`, `AmplitudeDampingNoise` |
+| `CSharpNumerics.Physics.Quantum.ErrorCorrection` | `IQuantumErrorCorrectionCode`, `BitFlipCode3`, `PhaseFlipCode3`, `ShorCode9`, `SteaneCode7` |
 
 ### Nyckel-API:er
 
 ```csharp
-// Bygg krets
-var circuit = new QuantumCircuit(2);
-circuit.AddInstruction(new QuantumInstruction(new HadamardGate(), new List<int>{0}));
-circuit.AddInstruction(new QuantumInstruction(new CNOTGate(), new List<int>{0, 1}));
+// Fluent circuit builder (ny i v2.8)
+var circuit = QuantumCircuitBuilder.New(2).H(0).CNOT(0, 1).Build();
 
 // Simulera
-var simulator = new QuantumSimulator();
-QuantumState state = simulator.Run(circuit);
+QuantumState state = new QuantumSimulator().Run(circuit);
 
 // Mät
-VectorN probs = state.GetProbabilities(); // [0.5, 0, 0, 0.5] för Bell state
+VectorN probs = state.GetProbabilities();     // [0.5, 0, 0, 0.5] för Bell state
+int outcome = state.Measure(new Random());     // Kollapsa state
+var shots = state.Sample(1000, new Random());  // 1000 mätningar
 
-// Bloch-sfär (single-qubit)
-BlochVector bloch = state.GetBlochVector(); // X, Y, Z, Theta, Phi, Radius
-Vector v = bloch.ToVector(); // 3D-vektor för rendering
+// Bloch-sfär
+BlochVector bloch = state.GetBlochVector();    // X, Y, Z, Theta, Phi, Radius
+
+// Fidelity
+double f = QuantumFidelity.Fidelity(state1, state2);
+
+// Noisy simulation
+var noisy = new NoisyQuantumSimulator(new Random())
+    .WithNoise(new DepolarizingNoise(0.01));
+QuantumState noisyState = noisy.Run(circuit);
+
+// Quantum algorithms
+var grover = GroverSearch.CreateCircuit(3, new[]{0,1,2}, new[]{5}); // Sök |101⟩
+var shorResult = ShorAlgorithm.Factor(15, new Random());             // 3 × 5
+
+// Error correction
+var code = new SteaneCode7();
+var ecSim = new ErrorCorrectionSimulator();
+var decoder = new SyndromeDecoder(code);
+
+// RL-miljö
+var env = QuantumEnvironment.Create(2)
+    .WithTargetCircuit(circuit)
+    .WithMaxGates(10)
+    .WithFidelityThreshold(0.99)
+    .Build();
 ```
-
-### Saknas (krävs för Fas 3 — Error Correction)
-- `NoiseModel` / `ErrorChannel` (depolarizing, bit-flip, phase-flip)
-- `QuantumErrorCorrectionEnv : IEnvironment` (RL-miljö)
-- Error correction codes (Shor, Steane, Surface)
 
 ---
 
@@ -149,138 +172,128 @@ q₁ ──────[X]──[M]──
 
 ---
 
-## 4. Asset-struktur
+## 4. Asset-struktur (implementerad)
 
 ```
 Assets/QuantumCircuitViz/
 ├── package.json
-├── README.md
 ├── Runtime/
 │   ├── QuantumCircuitViz.Runtime.asmdef
 │   └── Scripts/
 │       ├── Core/
-│       │   ├── QuantumSimulationManager.cs    ← Orchestrerar simulering
-│       │   ├── SimulationConfig.cs            ← [Serializable] inspector-konfiguration
-│       │   └── QuantumState.cs                ← Unity-vänlig state wrapper
-│       ├── Circuits/
-│       │   ├── CircuitBuilder.cs              ← Bygger QuantumCircuit via CSharpNumerics
-│       │   ├── GateDefinitions.cs             ← Gate metadata (namn, ikon, matris)
-│       │   └── CircuitValidator.cs            ← Validerar krets innan simulering
-│       ├── Visualization/
-│       │   ├── BlochSphereRenderer.cs         ← 3D Bloch-sfär med state-vektor
-│       │   ├── CircuitDiagramRenderer.cs      ← Renderar kretskort (2D/3D)
-│       │   ├── MeasurementHistogram.cs        ← 3D bar chart för mätresultat
-│       │   ├── QuantumStateHeatmap.cs         ← Density matrix som heatmap
-│       │   └── EntanglementVisualizer.cs      ← Visuella länkar mellan entanglade qubits
-│       ├── ErrorCorrection/
-│       │   ├── NoiseSimulationBridge.cs       ← CSharpNumerics noise model wrapper
-│       │   ├── RLErrorCorrectionRunner.cs     ← Kör RL-agent för error correction
-│       │   └── ErrorCorrectionVisualizer.cs   ← Visar noise + correction visuellt
-│       ├── UI/
-│       │   ├── GatePalette.cs                 ← Drag-and-drop gate-urval
-│       │   ├── CircuitCanvas.cs               ← Drop-target för gates
-│       │   ├── QubitInspectorPanel.cs         ← Visar qubit state detaljer
-│       │   └── RLTrainingPanel.cs             ← RL-träningsstatistik
-│       └── Export/
-│           ├── CircuitExporter.cs             ← Exportera krets som QASM/JSON
-│           └── ScreenshotExporter.cs          ← Spara visualiseringar som PNG
+│       │   ├── CircuitRunner.cs               ← Wraps QuantumCircuitBuilder + NoisySimulator
+│       │   ├── GateLibrary.cs                 ← Gate registry (18 gates inkl. Toffoli, Fredkin)
+│       │   └── SimulationConfig.cs            ← [Serializable] config med noise-parametrar
+│       └── Visualization/
+│           ├── BlochSphereRenderer.cs         ← 3D Bloch-sfär med animerad state-vektor
+│           ├── CircuitDiagramRenderer.cs      ← ASCII circuit diagram med steg-markör
+│           └── MeasurementHistogram.cs        ← UI probability bars per basis state
 ├── Editor/
 │   ├── QuantumCircuitViz.Editor.asmdef
 │   └── Scripts/
-│       ├── QuantumSimulationEditor.cs         ← Custom inspector
-│       └── CircuitPresetWizard.cs             ← Wizard för vanliga kretsar
+│       └── QuantumSimulationEditor.cs         ← Custom inspector (placeholder)
 └── Demo/
     ├── QuantumCircuitViz.Demo.asmdef
     └── Scripts/
-        └── DemoSimulation.cs                  ← Zero-setup demo
+        └── DemoSimulation.cs                  ← Zero-setup demo, 7 presets, noise toggle
 ```
 
 ---
 
 ## 5. Roadmap — Faser
 
-### Fas 0: CSharpNumerics Quantum Engine ✅ (klart)
-> *Grundläggande quantum engine finns i submodulen*
+### Fas 0: CSharpNumerics Quantum Engine ✅ (klart — v2.8.0)
+> *Fullständig quantum engine med noise, QEC, algorithms och RL*
 
 | # | Uppgift | Status |
 |---|---------|--------|
-| 0.1 | Quantum circuit builder API (`QuantumCircuit`, `QuantumInstruction`) | ✅ Klart |
-| 0.2 | Standard gates (H, X, Z, S, T, CNOT, CZ, SWAP, Rx/Ry/Rz) | ✅ 13 gates |
-| 0.3 | State vector simulator (`QuantumSimulator`) | ✅ Klart |
-| 0.4 | Measurement & probability distribution (`GetProbabilities()`) | ✅ Klart |
-| 0.5 | Bloch sphere (`BlochVector.FromAmplitudes()`, `.ToVector()`) | ✅ Klart |
-| 0.6 | Noise models (depolarizing, bit-flip, phase-flip) | 🔲 Nästa steg |
-| 0.7 | Error correction codes (Shor, Steane, Surface) | 🔲 Planerat |
-| 0.8 | RL environment for error correction | 🔲 Planerat |
-| 0.9 | Unit tests (50+ tester finns) | ✅ Klart |
+| 0.1 | Quantum circuit builder API (fluent `QuantumCircuitBuilder`) | ✅ Klart |
+| 0.2 | Standard gates — 18 total (H, X, Y, Z, S, T, Phase, Rx/Ry/Rz, CNOT, CZ, CPhase, SWAP, Toffoli, Fredkin, Controlled, PhaseOracle, ModularMultiply) | ✅ Klart |
+| 0.3 | State vector simulator (`QuantumSimulator` + `NoisyQuantumSimulator`) | ✅ Klart |
+| 0.4 | Measurement (`GetProbabilities()`, `Measure()`, `Sample()`) | ✅ Klart |
+| 0.5 | Bloch sphere + Fidelity (`BlochVector`, `QuantumFidelity`) | ✅ Klart |
+| 0.6 | Noise models (`DepolarizingNoise`, `DephasingNoise`, `AmplitudeDampingNoise`) | ✅ Klart |
+| 0.7 | QEC codes (`BitFlipCode3`, `PhaseFlipCode3`, `ShorCode9`, `SteaneCode7`) | ✅ Klart |
+| 0.8 | QEC simulation (`ErrorCorrectionSimulator`, `SyndromeDecoder`) | ✅ Klart |
+| 0.9 | Quantum algorithms (`GroverSearch`, `ShorAlgorithm`, `QFT`, `QPE`) | ✅ Klart |
+| 0.10 | RL environment (`QuantumEnvironment : IEnvironment`) | ✅ Klart |
+| 0.11 | Unit tests (50+ tester) | ✅ Klart |
 
-### Fas 1: Scaffold & Bloch Sphere (v1.0) — "First Light" 🔨 PÅGÅR
+### Fas 1: Scaffold & Bloch Sphere (v1.0) — "First Light" ✅ KLART
 > *Mål: En roterande Bloch-sfär som visar qubit state i realtid*
 
 | # | Uppgift | Status |
 |---|---------|--------|
 | 1.1 | Skapa `Assets/QuantumCircuitViz/` med package.json, asmdef-filer | ✅ Klart |
-| 1.2 | Uppdatera CSharpNumerics submodule till commit med Quantum Engine | ✅ Klart |
-| 1.3 | Bygg ny CSharpNumerics.dll med quantum-stöd | ✅ Klart |
+| 1.2 | Uppdatera CSharpNumerics submodule till v2.8.0 | ✅ Klart |
+| 1.3 | Bygg ny CSharpNumerics.dll med full quantum-stöd | ✅ Klart |
 | 1.4 | `BlochSphereRenderer.cs` — semi-transparent sfär, axlar, state-vektor | ✅ Klart |
-| 1.5 | `CircuitRunner.cs` — pipeline: skapa krets → stega → visa state | ✅ Klart |
-| 1.6 | `DemoSimulation.cs` — zero-setup demo med 4 preset-kretsar | ✅ Klart |
+| 1.5 | `CircuitRunner.cs` — fluent builder wrapper + noisy simulation | ✅ Klart |
+| 1.6 | `DemoSimulation.cs` — zero-setup demo med 7 presets + noise toggle | ✅ Klart |
 | 1.7 | `MeasurementHistogram.cs` — sannolikheter per basis state | ✅ Klart |
 | 1.8 | `CircuitDiagramRenderer.cs` — ASCII-krets med steg-markör | ✅ Klart |
-| 1.9 | Post-processing setup (Bloom, mörk bakgrund) | P1 |
-| 1.10 | Multi-qubit reduced Bloch vectors (partial trace) | ✅ Klart |
+| 1.9 | Multi-qubit reduced Bloch vectors (partial trace) | ✅ Klart |
+| 1.10 | Grover, Toffoli, QFT presets via CSharpNumerics Algorithms API | ✅ Klart |
+| 1.11 | Post-processing setup (Bloom, mörk bakgrund) | P1 — nästa |
 
 **Leverans:** Attach DemoSimulation → Play Mode → ser en glödande Bloch-sfär som animerar genom H → X → Z gates.
 
-### Fas 2: Circuit Builder & Measurement (v2.0) — "Build & Measure"
+### Fas 2: Circuit Builder & Measurement (v2.0) — "Build & Measure" ✅ KLART
 > *Mål: Användare bygger kretsar visuellt och ser mätresultat*
 
-| # | Uppgift | Prio |
-|---|---------|------|
-| 2.1 | `CircuitBuilder.cs` — wrappa CSharpNumerics circuit API | P0 |
-| 2.2 | `CircuitDiagramRenderer.cs` — renderar qubit-linjer och gate-symboler | P0 |
-| 2.3 | `GatePalette.cs` — UI-panel med tillgängliga gates | P0 |
-| 2.4 | Drag-and-drop: dra gates från paletten till kretsen | P0 |
-| 2.5 | Multi-qubit stöd (2–5 qubits), en Bloch-sfär per qubit | P0 |
-| 2.6 | `MeasurementHistogram.cs` — 3D histogram som visar sannolikheter | P1 |
-| 2.7 | Animerat mätningsflöde (partiklar → histogram) | P1 |
-| 2.8 | `EntanglementVisualizer.cs` — glödande linjer mellan entanglade qubits | P1 |
-| 2.9 | Preset-kretsar: Bell State, GHZ, Teleportation, Deutsch-Jozsa | P1 |
-| 2.10 | `QubitInspectorPanel.cs` — klicka på qubit → se amplitud, fas, sannolikhet | P2 |
+| # | Uppgift | Status |
+|---|---------|--------|
+| 2.1 | `CircuitCanvas.cs` — interaktiv krets-canvas med klickbara slots | ✅ Klart |
+| 2.2 | `GatePalette.cs` — UI-panel med alla 11 gates (single + multi-qubit) | ✅ Klart |
+| 2.3 | Click-to-place: välj gate → klicka slot → gate placeras | ✅ Klart |
+| 2.4 | Multi-qubit gate placement (klicka kontroll → mål) | ✅ Klart |
+| 2.5 | Builder mode toggle (G-tangent), CircuitCanvas → CircuitRunner pipeline | ✅ Klart |
+| 2.6 | `MeasurementHistogram.cs` — animerad sampling (256 shots, CDF-baserad) | ✅ Klart |
+| 2.7 | M-tangent triggar mätnings-sampling animation med shot count display | ✅ Klart |
+| 2.8 | `EntanglementVisualizer.cs` — glödande linjer mellan entanglade qubits | ✅ Klart |
+| 2.9 | `QubitInspectorPanel.cs` — klicka Bloch-sfär → Bloch-vektor, P(|0⟩), purity | ✅ Klart |
+| 2.10 | SphereCollider på Bloch-sfärer för raycast-klick | ✅ Klart |
+| 2.11 | EventSystem auto-setup för UI-interaktion | ✅ Klart |
 
-**Leverans:** Drag-and-drop circuit builder med live Bloch-sfärer och mätnings-histogram. Redo för screenshots.
+**Leverans:** G → gate palette + circuit canvas. Klicka gates → live Bloch-sfärer + entanglement-linjer. M → animerad mätning. Klicka sfär → qubit inspector.
 
-### Fas 3: RL Error Correction (v3.0) — "Self-Healing Qubits"
+### Fas 3: RL Error Correction (v3.0) — "Self-Healing Qubits" ✅ KLART
 > *Mål: Visa hur RL-agenter korrigerar kvantfel i realtid*
+> *CSharpNumerics API:er: `NoisyQuantumSimulator`, `QuantumEnvironment`, `ErrorCorrectionSimulator`, `SyndromeDecoder`, alla QEC-koder, `DQN`/`DoubleDQN`*
 
-| # | Uppgift | Prio |
-|---|---------|------|
-| 3.1 | `NoiseSimulationBridge.cs` — applicera noise models från CSharpNumerics | P0 |
-| 3.2 | `RLErrorCorrectionRunner.cs` — kör RL-agent (DQN/PPO) i bakgrundstråd | P0 |
-| 3.3 | `ErrorCorrectionVisualizer.cs` — visuell noise + correction | P0 |
-| 3.4 | Noise-shader: qubits "glitchar" visuellt proportionellt mot error rate | P1 |
-| 3.5 | `RLTrainingPanel.cs` — realtids linjegraf med fidelity over episodes | P1 |
-| 3.6 | Split-view: noisy vs korrigerad krets | P1 |
-| 3.7 | Steg-för-steg replay av RL-agentens beslut | P2 |
-| 3.8 | Jämförelse: RL vs klassisk error correction (Shor/Steane) | P2 |
-| 3.9 | Error rate heatmap overlay på kretsen | P2 |
+| # | Uppgift | Status |
+|---|---------|--------|
+| 3.1 | `SimulationConfig.cs` — QEC config (kod-typ, error rate, MC rounds) + RL config (episodes, max gates, fidelity threshold, LR, gamma) | ✅ Klart |
+| 3.2 | `QECRunner.cs` — wrapper runt alla 4 QEC-koder (BitFlip3/PhaseFlip3/Steane7/Shor9), SyndromeDecoder, Monte-Carlo jämförelse | ✅ Klart |
+| 3.3 | `RLErrorCorrectionRunner.cs` — DQN/DoubleDQN mot QuantumEnvironment i bakgrundstråd, thread-safe episode reports | ✅ Klart |
+| 3.4 | `NoiseGlitchEffect.cs` — visuellt "glitch" på Bloch-sfärer: jitter + röd-shift + pulsande alpha proportionellt mot error rate | ✅ Klart |
+| 3.5 | `ErrorCorrectionVisualizer.cs` — split-view: noisy vs QEC-protected fidelity-staplar, syndrom-display, corrections-lista | ✅ Klart |
+| 3.6 | `RLTrainingPanel.cs` — realtids linjegraf ritat på Texture2D (Bresenham), fidelity + reward per episode, status-text | ✅ Klart |
+| 3.7 | `ErrorHeatmapOverlay.cs` — per-qubit error rate heatmap (grön→gul→röd), overlay på krets-diagrammet | ✅ Klart |
+| 3.8 | Demo: Q = kör QEC comparison, E = starta/stoppa RL-träning, C = byt QEC-kod | ✅ Klart |
+| 3.9 | Thread-safe rapport-kö (main thread drain) för RL-episode callbacks | ✅ Klart |
+| 3.10 | NoiseGlitch auto-cleanup vid preset-byte, OnDestroy stoppar RL-tråd | ✅ Klart |
 
-**Leverans:** Demoscen där noise appliceras → RL-agent tränas live → fidelity förbättras visuellt. Perfekt för video-demo.
+**Leverans:** Q → Monte-Carlo QEC jämförelse med animerade staplar + syndrom. E → DQN tränas live med realtids-graf. C → cykla mellan 4 QEC-koder. Noise-glitch visuellt på sfärer.
 
-### Fas 4: Polish & Export (v4.0) — "Marketing Ready"
+### Fas 4: Polish & Export (v4.0) — "Marketing Ready" ✅ KLART
 > *Mål: Asset Store-redo, exportfunktioner, maxad visuell kvalitet*
 
-| # | Uppgift | Prio |
-|---|---------|------|
-| 4.1 | 3D world-space circuit (hologram-estetik) som alternativ till 2D UI | P1 |
-| 4.2 | VFX Graph-partiklar: photon-flöde längs ledningar | P1 |
-| 4.3 | Density matrix heatmap (`QuantumStateHeatmap.cs`) | P1 |
-| 4.4 | QASM-export (`CircuitExporter.cs`) | P2 |
-| 4.5 | Screenshot/video capture utility | P2 |
-| 4.6 | Custom inspectors med live-preview i Editor | P2 |
-| 4.7 | README, dokumentation, Asset Store-beskrivning | P0 |
-| 4.8 | WebGL build + demo-sida | P1 |
-| 4.9 | Promotional screenshots och GIF-animationer | P1 |
+| # | Uppgift | Status |
+|---|---------|--------|
+| 4.1 | 3D world-space circuit (`WorldSpaceCircuit.cs`) — hologram-estetik, glowing wires, gate cubes, control dots, step highlighting | ✅ Klart |
+| 4.2 | VFX Graph-partiklar: photon-flöde längs ledningar | ⏭️ Skippat (kräver VFX Graph-paket) |
+| 4.3 | Density matrix heatmap (`DensityMatrixHeatmap.cs`) — ρ=\|ψ⟩⟨ψ\| med magnitud→ljusstyrka, fas→hue via HSV | ✅ Klart |
+| 4.4 | QASM-export (`CircuitExporter.cs`) — OpenQASM 2.0, JSON, compact text notation, alla 14+ gate-typer | ✅ Klart |
+| 4.5 | Screenshot/video capture (`ScreenshotUtility.cs`) — supersampled PNG, camera-to-texture | ✅ Klart |
+| 4.6 | Custom inspector (`QuantumSimulationEditor.cs`) — preset-knappar, export-kontroller, steg-navigation | ✅ Klart |
+| 4.7 | README, dokumentation (`Assets/QuantumCircuitViz/README.md`) — fullständig med features, quick start, API-referens, tangentbindningar | ✅ Klart |
+| 4.8 | WebGL build + demo-sida | ⏭️ Framtida (kräver hosting) |
+| 4.9 | Promotional screenshots och GIF-animationer | ⏭️ Framtida (kräver Play Mode) |
+
+**Nya tangentbindningar:** D → density matrix, W → 3D circuit, F5 → QASM till clipboard, F12 → screenshot
+
+**Leverans:** Asseten är funktionellt komplett med 20+ scripts, 7 presets, full interaktivitet, QASM/JSON-export, densitetsmatris, 3D-krets, custom editor, och README-dokumentation.
 
 ---
 

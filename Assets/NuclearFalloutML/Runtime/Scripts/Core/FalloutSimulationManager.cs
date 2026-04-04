@@ -12,7 +12,7 @@ using CSharpNumerics.Engines.GIS.Scenario;
 using CSharpNumerics.Engines.GIS.Analysis;
 using CSharpNumerics.Engines.GIS.Coordinates;
 using CSharpNumerics.Engines.GIS.Export;
-using CSharpNumerics.Physics.Enums;
+using CSharpNumerics.Physics.Environmental.Enums;
 using CSharpNumerics.Physics.Materials;
 using CSharpNumerics.Statistics.MonteCarlo;
 using CSharpNumerics.ML.Clustering;
