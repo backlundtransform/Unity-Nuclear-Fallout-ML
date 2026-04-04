@@ -1,0 +1,16 @@
+{
+    "name": "QuantumCircuitViz.Runtime",
+    "rootNamespace": "QuantumCircuitViz",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "CSharpNumerics.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
