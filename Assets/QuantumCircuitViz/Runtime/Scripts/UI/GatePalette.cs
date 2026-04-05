@@ -29,15 +29,19 @@ namespace QuantumCircuitViz.Visualization
 
         public void Initialise(RectTransform parent)
         {
-            var go = new GameObject("GatePalette");
-            _container = go.AddComponent<RectTransform>();
+            gameObject.name = "GatePalette";
+            _container = gameObject.GetComponent<RectTransform>();
+            if (_container == null)
+                _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.0f, 0.60f);
-            _container.anchorMax = new Vector2(0.12f, 0.98f);
+            _container.anchorMin = new Vector2(0.0f, 0.52f);
+            _container.anchorMax = new Vector2(0.09f, 0.97f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
-            var bg = go.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = new Color(0.04f, 0.04f, 0.10f, 0.92f);
 
             // Title
@@ -109,8 +113,8 @@ namespace QuantumCircuitViz.Visualization
             txtRt.offsetMax = Vector2.zero;
             var txt = txtGo.AddComponent<Text>();
             txt.text = $"{gate.Symbol}  {gate.DisplayName}";
-            txt.font = Font.CreateDynamicFontFromOSFont("Consolas", 12);
-            txt.fontSize = 12;
+            txt.font = Font.CreateDynamicFontFromOSFont("Consolas", 10);
+            txt.fontSize = 10;
             txt.color = TextColor;
             txt.alignment = TextAnchor.MiddleCenter;
 

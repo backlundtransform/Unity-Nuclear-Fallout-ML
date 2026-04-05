@@ -17,11 +17,11 @@ namespace QuantumCircuitViz.Core
         [Header("Visualization")]
         [Tooltip("Bloch sphere radius in world units")]
         [Range(0.5f, 3f)]
-        public float sphereRadius = 1.5f;
+        public float sphereRadius = 1.0f;
 
         [Tooltip("Spacing between Bloch spheres for multi-qubit circuits")]
         [Range(2f, 8f)]
-        public float sphereSpacing = 4f;
+        public float sphereSpacing = 3f;
 
         [Tooltip("Seconds per gate animation step")]
         [Range(0.1f, 3f)]

@@ -55,15 +55,19 @@ namespace QuantumCircuitViz.Visualization
             _slotImages = new Image[_maxSlots, _qubitCount];
             _slotTexts = new Text[_maxSlots, _qubitCount];
 
-            var go = new GameObject("CircuitCanvas");
-            _container = go.AddComponent<RectTransform>();
+            gameObject.name = "CircuitCanvas";
+            _container = gameObject.GetComponent<RectTransform>();
+            if (_container == null)
+                _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.13f, 0.60f);
-            _container.anchorMax = new Vector2(0.98f, 0.98f);
+            _container.anchorMin = new Vector2(0.10f, 0.68f);
+            _container.anchorMax = new Vector2(0.75f, 0.97f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
-            var bg = go.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = new Color(0.03f, 0.03f, 0.08f, 0.90f);
 
             BuildGrid();
@@ -191,8 +195,8 @@ namespace QuantumCircuitViz.Visualization
                     txtRt.offsetMax = Vector2.zero;
                     var txt = txtGo.AddComponent<Text>();
                     txt.text = "";
-                    txt.font = Font.CreateDynamicFontFromOSFont("Consolas", 13);
-                    txt.fontSize = 13;
+                    txt.font = Font.CreateDynamicFontFromOSFont("Consolas", 11);
+                    txt.fontSize = 11;
                     txt.color = GateTextColor;
                     txt.alignment = TextAnchor.MiddleCenter;
                     _slotTexts[s, q] = txt;

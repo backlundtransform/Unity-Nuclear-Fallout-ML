@@ -168,11 +168,11 @@ namespace QuantumCircuitViz.Visualization
                 go.transform.localPosition = positions[i];
                 var tm = go.AddComponent<TextMesh>();
                 tm.text = texts[i];
-                tm.characterSize = 0.12f * _radius;
+                tm.characterSize = 0.035f * _radius;
                 tm.anchor = TextAnchor.MiddleCenter;
                 tm.alignment = TextAlignment.Center;
-                tm.color = new Color(0.8f, 0.9f, 1f);
-                tm.fontSize = 48;
+                tm.color = new Color(0.8f, 0.9f, 1f, 0.85f);
+                tm.fontSize = 36;
                 _labels[i] = tm;
             }
         }

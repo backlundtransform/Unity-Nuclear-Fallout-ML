@@ -16,15 +16,19 @@ namespace QuantumCircuitViz.Visualization
 
         public void Initialise(RectTransform parent)
         {
-            var containerGo = new GameObject("CircuitDiagram");
-            _container = containerGo.AddComponent<RectTransform>();
+            gameObject.name = "CircuitDiagram";
+            _container = gameObject.GetComponent<RectTransform>();
+            if (_container == null)
+                _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.02f, 0.02f);
-            _container.anchorMax = new Vector2(0.60f, 0.22f);
+            _container.anchorMin = new Vector2(0.02f, 0.05f);
+            _container.anchorMax = new Vector2(0.55f, 0.20f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
-            var bg = containerGo.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = new Color(0.05f, 0.05f, 0.12f, 0.85f);
 
             var textGo = new GameObject("DiagramText");
@@ -36,8 +40,8 @@ namespace QuantumCircuitViz.Visualization
             textRt.offsetMax = Vector2.zero;
 
             _diagramText = textGo.AddComponent<Text>();
-            _diagramText.font = Font.CreateDynamicFontFromOSFont("Consolas", 14);
-            _diagramText.fontSize = 14;
+            _diagramText.font = Font.CreateDynamicFontFromOSFont("Consolas", 12);
+            _diagramText.fontSize = 12;
             _diagramText.color = new Color(0f, 0.9f, 1f);
             _diagramText.alignment = TextAnchor.MiddleLeft;
         }

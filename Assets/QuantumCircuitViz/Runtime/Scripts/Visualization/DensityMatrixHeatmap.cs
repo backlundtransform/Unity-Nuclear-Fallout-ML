@@ -21,15 +21,19 @@ namespace QuantumCircuitViz.Visualization
 
         public void Initialise(RectTransform parent)
         {
-            var go = new GameObject("DensityMatrixHeatmap");
-            _container = go.AddComponent<RectTransform>();
+            gameObject.name = "DensityMatrixHeatmap";
+            _container = gameObject.GetComponent<RectTransform>();
+            if (_container == null)
+                _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.02f, 0.02f);
-            _container.anchorMax = new Vector2(0.35f, 0.40f);
+            _container.anchorMin = new Vector2(0.02f, 0.22f);
+            _container.anchorMax = new Vector2(0.30f, 0.50f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
-            var bg = go.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = PanelBg;
 
             // Title

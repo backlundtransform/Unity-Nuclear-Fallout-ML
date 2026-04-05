@@ -22,15 +22,19 @@ namespace QuantumCircuitViz.Visualization
 
         public void Initialise(RectTransform parent)
         {
-            var go = new GameObject("QubitInspector");
-            _panel = go.AddComponent<RectTransform>();
+            gameObject.name = "QubitInspector";
+            _panel = gameObject.GetComponent<RectTransform>();
+            if (_panel == null)
+                _panel = gameObject.AddComponent<RectTransform>();
             _panel.SetParent(parent, false);
             _panel.anchorMin = new Vector2(0.70f, 0.02f);
             _panel.anchorMax = new Vector2(0.98f, 0.40f);
             _panel.offsetMin = Vector2.zero;
             _panel.offsetMax = Vector2.zero;
 
-            var bg = go.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = PanelBg;
 
             // Title

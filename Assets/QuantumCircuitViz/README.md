@@ -42,25 +42,29 @@ Build quantum circuits, step through gate-by-gate, watch Bloch spheres evolve in
 
 No scene setup, no materials, no prefabs required.
 
+## Views
+
+The demo uses a **view system** — press **Tab** to cycle between views. Each view shows only its relevant UI, keeping the screen clean and readable.
+
+| View | What you see | Key features |
+|------|-------------|--------------|
+| **Bloch** | Bloch spheres only | Focused qubit-state view without extra UI. |
+| **Histogram** | Measurement histogram only | Clean probability view for measurement outcomes. |
+| **Circuit** | Circuit diagram only | Clear gate-order and step-by-step overview. |
+
 ## Keyboard Controls
 
 | Key | Action |
 |-----|--------|
+| Tab | Cycle view forward (Shift+Tab = backward) |
 | ← / → | Step backward / forward through gates |
 | Space | Play / pause auto-advance |
 | R | Reset to \|0…0⟩ |
 | N | Toggle noise on/off |
-| G | Toggle circuit builder (gate palette + canvas) |
-| M | Run measurement sampling animation (256 shots) |
-| D | Toggle density matrix heatmap |
-| W | Toggle 3D world-space circuit |
-| Q | Run QEC comparison (protected vs unprotected) |
-| E | Start/stop RL training |
-| C | Cycle QEC code (BitFlip3 → PhaseFlip3 → Steane7 → Shor9) |
+| M | Run measurement sampling animation (Histogram view) |
 | F5 | Copy OpenQASM to clipboard |
 | F12 | Take screenshot |
 | 1–7 | Load preset circuits |
-| Click sphere | Inspect qubit (Bloch coordinates) |
 
 ## Preset Circuits
 

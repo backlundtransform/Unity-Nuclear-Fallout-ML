@@ -30,16 +30,20 @@ namespace QuantumCircuitViz.Visualization
             _stateCount = 1 << qubitCount;
 
             // Container
-            var containerGo = new GameObject("Histogram");
-            _container = containerGo.AddComponent<RectTransform>();
+            gameObject.name = "Histogram";
+            _container = gameObject.GetComponent<RectTransform>();
+            if (_container == null)
+                _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.65f, 0.02f);
-            _container.anchorMax = new Vector2(0.98f, 0.40f);
+            _container.anchorMin = new Vector2(0.60f, 0.05f);
+            _container.anchorMax = new Vector2(0.98f, 0.35f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
             // Background
-            var bg = containerGo.AddComponent<Image>();
+            var bg = gameObject.GetComponent<Image>();
+            if (bg == null)
+                bg = gameObject.AddComponent<Image>();
             bg.color = new Color(0.05f, 0.05f, 0.12f, 0.85f);
 
             // Title
@@ -52,8 +56,8 @@ namespace QuantumCircuitViz.Visualization
             titleRt.offsetMax = Vector2.zero;
             _titleText = titleGo.AddComponent<Text>();
             _titleText.text = "Measurement Probabilities";
-            _titleText.font = Font.CreateDynamicFontFromOSFont("Consolas", 14);
-            _titleText.fontSize = 14;
+            _titleText.font = Font.CreateDynamicFontFromOSFont("Consolas", 12);
+            _titleText.fontSize = 12;
             _titleText.alignment = TextAnchor.MiddleCenter;
             _titleText.color = new Color(0.8f, 0.9f, 1f);
 

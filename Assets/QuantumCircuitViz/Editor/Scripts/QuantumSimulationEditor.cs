@@ -83,11 +83,10 @@ namespace QuantumCircuitViz.Editor
             EditorGUILayout.Space(4);
             EditorGUILayout.HelpBox(
                 "Key bindings in Play Mode:\n" +
+                "Tab — Cycle view (Bloch → Histogram → Circuit)\n" +
                 "←/→ Step  |  Space Play  |  R Reset  |  N Noise\n" +
-                "G Builder  |  M Measure  |  D Density Matrix\n" +
-                "Q QEC  |  E RL-Train  |  C Cycle-Code\n" +
-                "F5 Export QASM  |  F12 Screenshot  |  W 3D Circuit\n" +
-                "1-7 Preset Circuits",
+                "M Measure (Histogram)\n" +
+                "F5 Export QASM  |  F12 Screenshot  |  1-7 Presets",
                 MessageType.None);
         }
     }

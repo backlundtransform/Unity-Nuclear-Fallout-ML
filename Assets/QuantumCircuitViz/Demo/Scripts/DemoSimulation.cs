@@ -4,6 +4,7 @@ using UnityEngine.EventSystems;
 using System.Collections.Generic;
 using QuantumCircuitViz.Core;
 using QuantumCircuitViz.Visualization;
+using QuantumCircuitViz.UI;
 using QuantumCircuitViz.Export;
 
 using CSharpNumerics.Engines.Quantum;
@@ -13,26 +14,23 @@ using CSharpNumerics.Physics.Quantum;
 namespace QuantumCircuitViz.Demo
 {
     /// <summary>
-    /// Self-contained demo: builds a quantum circuit, steps through gate-by-gate,
-    /// visualises Bloch spheres and measurement probabilities.
-    /// Attach to any GameObject → enter Play Mode → see the quantum circuit.
+    /// Self-contained demo: three-view quantum circuit visualiser.
+    /// Attach to any empty GameObject → enter Play Mode → done.
+    ///
+    /// Views:
+    ///   A. Circuit View  — build and step through gate-by-gate.
+    ///   B. State View    — probability bars with phase, Argand diagram.
+    ///   C. Bloch View    — single-qubit Bloch sphere, entanglement-aware.
     ///
     /// Controls:
-    ///   Right/Left arrow — step through gates
-    ///   Space — play / pause auto-advance
-    ///   1-7 — load preset circuits
-    ///   N — toggle noise on/off
-    ///   R — reset to |0⟩
-    ///   G — toggle circuit builder (gate palette + canvas)
-    ///   M — run measurement sampling animation
-    ///   Click Bloch sphere — inspect qubit
-    ///   Q — run QEC comparison (protected vs unprotected)
-    ///   E — start/stop RL training
-    ///   C — cycle QEC code (BitFlip3 → PhaseFlip3 → Steane7 → Shor9)
-    ///   D — toggle density matrix heatmap
-    ///   W — toggle 3D world-space circuit
-    ///   F5 — copy QASM to clipboard
-    ///   F12 — take screenshot
+    ///   Tab / Shift-Tab  — cycle view
+    ///   ←/→              — step backward / forward
+    ///   Space             — play / pause auto-advance
+    ///   R                 — reset to |0…0⟩
+    ///   N                 — toggle noise
+    ///   F5                — copy QASM to clipboard
+    ///   F12               — screenshot
+    ///   1-7               — load preset circuits
     /// </summary>
     public class DemoSimulation : MonoBehaviour
     {
@@ -43,62 +41,45 @@ namespace QuantumCircuitViz.Demo
         [Tooltip("Auto-step through gates on start")]
         public bool autoPlay = true;
 
+        // ── Core state ───────────────────────────────────────────
         private CircuitRunner _runner;
-        private int _currentStep = -1; // -1 = initial |0…0⟩ state
+        private int _currentStep = -1;
         private bool _playing;
         private float _playTimer;
         private string _currentTitle = "";
 
-        // Visualisation
-        private BlochSphereRenderer[] _spheres;
-        private MeasurementHistogram _histogram;
-        private CircuitDiagramRenderer _diagram;
+        // ── Views ────────────────────────────────────────────────
+        private enum ViewMode { Circuit, State, Bloch }
+        private ViewMode _currentView = ViewMode.Circuit;
+
         private Canvas _canvas;
+        private RectTransform _viewContent;
+        private ViewTabBar _tabBar;
+        private CircuitGridView _circuitView;
+        private StateView _stateView;
+        private BlochSphereView _blochView;
+
+        // ── HUD ──────────────────────────────────────────────────
         private Text _infoText;
-        private Text _controlsText;
+        private Text _statusBarText;
 
-        // Phase 2 — Build & Measure
-        private GatePalette _gatePalette;
-        private CircuitCanvas _circuitCanvas;
-        private EntanglementVisualizer _entanglement;
-        private QubitInspectorPanel _inspector;
-        private bool _builderMode;
-
-        // Phase 3 — RL Error Correction
-        private ErrorCorrectionVisualizer _qecViz;
-        private RLTrainingPanel _rlPanel;
-        private ErrorHeatmapOverlay _errorHeatmap;
-        private NoiseGlitchEffect[] _noiseGlitches;
-        private QECRunner _qecRunner;
-        private RLErrorCorrectionRunner _rlRunner;
-        private bool _qecMode;
-        private readonly Queue<EpisodeReport> _pendingReports = new Queue<EpisodeReport>();
-
-        // Phase 4 — Polish & Export
-        private DensityMatrixHeatmap _densityHeatmap;
-        private WorldSpaceCircuit _worldCircuit;
-        private bool _worldCircuitVisible;
-
-        // Cached Bloch vectors for entanglement + inspector
-        private Vector3[] _cachedBlochVectors;
-
+        // ──────────────────────────────────────────────────────────
+        // Lifecycle
+        // ──────────────────────────────────────────────────────────
         private void Start()
         {
             EnsureCamera();
             EnsureEventSystem();
             CreateCanvas();
-            BuildPhase2UI();
-            BuildPhase3UI();
-            BuildPhase4UI();
+            BuildViews();
             LoadPreset_BellState();
+            SwitchView(ViewMode.Circuit);
             _playing = autoPlay;
         }
 
         private void Update()
         {
             HandleInput();
-            HandleSphereClick();
-            DrainRLReports();
 
             if (_playing && _runner != null)
             {
@@ -111,21 +92,18 @@ namespace QuantumCircuitViz.Demo
             }
         }
 
+        // ──────────────────────────────────────────────────────────
+        // Input
+        // ──────────────────────────────────────────────────────────
         private void HandleInput()
         {
 #if ENABLE_LEGACY_INPUT_MANAGER
-            if (Input.GetKeyDown(KeyCode.RightArrow)) StepForward();
+            if (Input.GetKeyDown(KeyCode.Tab)) CycleView(Input.GetKey(KeyCode.LeftShift) ? -1 : 1);
+            else if (Input.GetKeyDown(KeyCode.RightArrow)) StepForward();
             else if (Input.GetKeyDown(KeyCode.LeftArrow)) StepBackward();
-            else if (Input.GetKeyDown(KeyCode.Space)) _playing = !_playing;
+            else if (Input.GetKeyDown(KeyCode.Space)) TogglePlay();
             else if (Input.GetKeyDown(KeyCode.R)) ResetCircuit();
             else if (Input.GetKeyDown(KeyCode.N)) ToggleNoise();
-            else if (Input.GetKeyDown(KeyCode.G)) ToggleBuilder();
-            else if (Input.GetKeyDown(KeyCode.M)) RunMeasurementSampling();
-            else if (Input.GetKeyDown(KeyCode.Q)) RunQECComparison();
-            else if (Input.GetKeyDown(KeyCode.E)) ToggleRLTraining();
-            else if (Input.GetKeyDown(KeyCode.C)) CycleQECCode();
-            else if (Input.GetKeyDown(KeyCode.D)) ToggleDensityMatrix();
-            else if (Input.GetKeyDown(KeyCode.W)) ToggleWorldCircuit();
             else if (Input.GetKeyDown(KeyCode.F5)) ExportQASMToClipboard();
             else if (Input.GetKeyDown(KeyCode.F12)) TakeScreenshot();
             else if (Input.GetKeyDown(KeyCode.Alpha1)) LoadPreset_BellState();
@@ -138,18 +116,12 @@ namespace QuantumCircuitViz.Demo
 #elif HAS_INPUT_SYSTEM
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb == null) return;
-            if (kb.rightArrowKey.wasPressedThisFrame) StepForward();
+            if (kb.tabKey.wasPressedThisFrame) CycleView(kb.leftShiftKey.isPressed ? -1 : 1);
+            else if (kb.rightArrowKey.wasPressedThisFrame) StepForward();
             else if (kb.leftArrowKey.wasPressedThisFrame) StepBackward();
-            else if (kb.spaceKey.wasPressedThisFrame) _playing = !_playing;
+            else if (kb.spaceKey.wasPressedThisFrame) TogglePlay();
             else if (kb.rKey.wasPressedThisFrame) ResetCircuit();
             else if (kb.nKey.wasPressedThisFrame) ToggleNoise();
-            else if (kb.gKey.wasPressedThisFrame) ToggleBuilder();
-            else if (kb.mKey.wasPressedThisFrame) RunMeasurementSampling();
-            else if (kb.qKey.wasPressedThisFrame) RunQECComparison();
-            else if (kb.eKey.wasPressedThisFrame) ToggleRLTraining();
-            else if (kb.cKey.wasPressedThisFrame) CycleQECCode();
-            else if (kb.dKey.wasPressedThisFrame) ToggleDensityMatrix();
-            else if (kb.wKey.wasPressedThisFrame) ToggleWorldCircuit();
             else if (kb.f5Key.wasPressedThisFrame) ExportQASMToClipboard();
             else if (kb.f12Key.wasPressedThisFrame) TakeScreenshot();
             else if (kb.digit1Key.wasPressedThisFrame) LoadPreset_BellState();
@@ -162,166 +134,98 @@ namespace QuantumCircuitViz.Demo
 #endif
         }
 
-        /// <summary>Raycast click to Bloch sphere → show inspector panel.</summary>
-        private void HandleSphereClick()
+        // ──────────────────────────────────────────────────────────
+        // View switching
+        // ──────────────────────────────────────────────────────────
+        private void CycleView(int direction)
         {
-#if ENABLE_LEGACY_INPUT_MANAGER
-            if (!Input.GetMouseButtonDown(0)) return;
-            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-#elif HAS_INPUT_SYSTEM
-            var mouse = UnityEngine.InputSystem.Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
-            var ray = Camera.main.ScreenPointToRay(mouse.position.ReadValue());
-#else
-            return;
-#endif
-
-            if (_spheres == null || _inspector == null) return;
-
-            // Check if we hit any Bloch sphere object
-            if (Physics.Raycast(ray, out RaycastHit hit, 100f))
-            {
-                for (int q = 0; q < _spheres.Length; q++)
-                {
-                    if (hit.transform.IsChildOf(_spheres[q].transform) ||
-                        hit.transform == _spheres[q].transform)
-                    {
-                        var bloch = _cachedBlochVectors != null && q < _cachedBlochVectors.Length
-                            ? _cachedBlochVectors[q] : Vector3.up;
-                        _inspector.ShowQubit(q, bloch);
-                        return;
-                    }
-                }
-            }
+            int count = System.Enum.GetValues(typeof(ViewMode)).Length;
+            int next = (((int)_currentView + direction) % count + count) % count;
+            _tabBar.Select(next);
         }
 
-        // ── Phase 2: Builder Mode ────────────────────────────────────
-
-        private void ToggleBuilder()
+        private void SwitchView(ViewMode view)
         {
-            _builderMode = !_builderMode;
-            Debug.Log($"[QuantumViz] Builder: {(_builderMode ? "ON" : "OFF")}");
+            _currentView = view;
 
-            if (_gatePalette != null)
-                _gatePalette.gameObject.SetActive(_builderMode);
-            if (_circuitCanvas != null)
-                _circuitCanvas.gameObject.SetActive(_builderMode);
+            _circuitView.Hide();
+            _stateView.Hide();
+            _blochView.Hide();
 
-            // Hide presets diagram when builder is active
-            if (_diagram != null)
-                _diagram.gameObject.SetActive(!_builderMode);
-
-            UpdateControlsHint();
-        }
-
-        private void OnBuilderCircuitChanged(CircuitRunner runner)
-        {
-            _runner = runner;
-            _currentTitle = "Custom Circuit";
-            _currentStep = runner.Steps.Count - 1; // show latest state
-
-            if (config.enableNoise)
-                _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
-
-            BuildSpheres();
-            BuildHistogram();
-            UpdateVisualisation();
-            UpdateInfo("Custom Circuit");
-        }
-
-        private void RunMeasurementSampling()
-        {
-            if (_runner == null || _histogram == null) return;
-
-            QuantumState state;
-            if (_currentStep < 0)
+            switch (view)
             {
-                var amps = new CSharpNumerics.Numerics.Objects.ComplexVectorN(1 << _runner.QubitCount);
-                amps[0] = new CSharpNumerics.Numerics.Objects.ComplexNumber(1, 0);
-                state = new QuantumState(amps);
-            }
-            else
-            {
-                state = _runner.RunUpTo(_currentStep);
+                case ViewMode.Circuit:
+                    _circuitView.Show();
+                    break;
+                case ViewMode.State:
+                    _stateView.Show();
+                    break;
+                case ViewMode.Bloch:
+                    _blochView.Show();
+                    break;
             }
 
-            var probs = state.GetProbabilities();
-            _histogram.AnimateSampling(probs, 256, 200f);
-            Debug.Log("[QuantumViz] Measurement sampling: 256 shots");
+            UpdateStatusBar();
+            if (_runner != null)
+                PropagateState();
+
+            Debug.Log($"[QuantumViz] View → {view}");
         }
 
-        // ── Preset Circuits ──────────────────────────────────────────
-
+        // ──────────────────────────────────────────────────────────
+        // Preset Circuits
+        // ──────────────────────────────────────────────────────────
         private void LoadPreset_BellState()
         {
-            var circuit = QuantumCircuitBuilder.New(2).H(0).CNOT(0, 1).Build();
-            ApplyCircuit(CircuitRunner.FromBuilder(circuit), "Bell State  (H → CNOT)");
+            var c = QuantumCircuitBuilder.New(2).H(0).CNOT(0, 1).Build();
+            ApplyCircuit(CircuitRunner.FromBuilder(c), "Bell State  (H → CNOT)");
         }
 
         private void LoadPreset_GHZ()
         {
-            var circuit = QuantumCircuitBuilder.New(3).H(0).CNOT(0, 1).CNOT(0, 2).Build();
-            ApplyCircuit(CircuitRunner.FromBuilder(circuit), "GHZ State  (H → CNOT → CNOT)");
+            var c = QuantumCircuitBuilder.New(3).H(0).CNOT(0, 1).CNOT(0, 2).Build();
+            ApplyCircuit(CircuitRunner.FromBuilder(c), "GHZ State  (H → CNOT → CNOT)");
         }
 
         private void LoadPreset_SuperpositionChain()
         {
             int n = Mathf.Clamp(config.qubitCount, 1, 5);
-            var builder = QuantumCircuitBuilder.New(n);
-            for (int i = 0; i < n; i++) builder.H(i);
-            ApplyCircuit(CircuitRunner.FromBuilder(builder.Build()), $"Superposition Chain  ({n}× Hadamard)");
+            var b = QuantumCircuitBuilder.New(n);
+            for (int i = 0; i < n; i++) b.H(i);
+            ApplyCircuit(CircuitRunner.FromBuilder(b.Build()), $"Superposition Chain  ({n}× Hadamard)");
         }
 
         private void LoadPreset_PhaseKickback()
         {
-            var circuit = QuantumCircuitBuilder.New(2)
+            var c = QuantumCircuitBuilder.New(2)
                 .H(0).X(1).H(1).CNOT(0, 1).H(0).Build();
-            ApplyCircuit(CircuitRunner.FromBuilder(circuit), "Phase Kickback  (Deutsch-like)");
+            ApplyCircuit(CircuitRunner.FromBuilder(c), "Phase Kickback  (Deutsch-like)");
         }
 
         private void LoadPreset_Grover()
         {
-            var circuit = GroverSearch.CreateCircuit(3, new[] { 0, 1, 2 }, new[] { 5 });
-            ApplyCircuit(CircuitRunner.FromBuilder(circuit), "Grover Search  (target |101⟩)");
+            var c = GroverSearch.CreateCircuit(3, new[] { 0, 1, 2 }, new[] { 5 });
+            ApplyCircuit(CircuitRunner.FromBuilder(c), "Grover Search  (target |101⟩)");
         }
 
         private void LoadPreset_Toffoli()
         {
-            var circuit = QuantumCircuitBuilder.New(3)
-                .X(0).X(1)
-                .Toffoli(0, 1, 2)
-                .Build();
-            ApplyCircuit(CircuitRunner.FromBuilder(circuit), "Toffoli  (X X → CCX)");
+            var c = QuantumCircuitBuilder.New(3).X(0).X(1).Toffoli(0, 1, 2).Build();
+            ApplyCircuit(CircuitRunner.FromBuilder(c), "Toffoli  (X X → CCX)");
         }
 
         private void LoadPreset_QFT()
         {
-            var builder = QuantumCircuitBuilder.New(3).X(0);
-            builder.ApplyQFT(0, 1, 2);
-            ApplyCircuit(CircuitRunner.FromBuilder(builder.Build()), "Quantum Fourier Transform  (3 qubits)");
+            var b = QuantumCircuitBuilder.New(3).X(0);
+            b.ApplyQFT(0, 1, 2);
+            ApplyCircuit(CircuitRunner.FromBuilder(b.Build()), "Quantum Fourier Transform  (3 qubits)");
         }
 
-        private void ToggleNoise()
-        {
-            config.enableNoise = !config.enableNoise;
-            Debug.Log($"[QuantumViz] Noise: {(config.enableNoise ? "ON" : "OFF")}  (depol={config.depolarizingRate})");
-            if (_runner != null)
-            {
-                if (config.enableNoise)
-                    _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
-                else
-                    _runner.WithNoise(0, 0, 0);
-                UpdateVisualisation();
-            }
-        }
-
-        // ── Circuit Management ───────────────────────────────────────
-
+        // ──────────────────────────────────────────────────────────
+        // Circuit management
+        // ──────────────────────────────────────────────────────────
         private void ApplyCircuit(CircuitRunner runner, string title)
         {
-            // Exit builder mode when loading a preset
-            if (_builderMode) ToggleBuilder();
-
             _runner = runner;
             _currentTitle = title;
             _currentStep = -1;
@@ -330,33 +234,48 @@ namespace QuantumCircuitViz.Demo
             if (config.enableNoise)
                 _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
 
-            _histogram?.StopSampling();
+            // Rebuild views with new qubit count
+            _circuitView.SetCircuit(_runner.Steps, _runner.QubitCount);
+            _stateView.Rebuild(_runner.QubitCount);
+            _blochView.Rebuild(_runner.QubitCount, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
 
-            // Hide QEC panels when switching presets
-            _qecMode = false;
-            _qecViz?.Hide();
-            _errorHeatmap?.Hide();
-            ClearNoiseGlitch();
-
-            // Hide Phase 4 overlays
-            _worldCircuitVisible = false;
-            _worldCircuit?.Clear();
-
-            BuildSpheres();
-            BuildHistogram();
-            BuildDiagram();
-            UpdateVisualisation();
-
-            Debug.Log($"[QuantumViz] Loaded: {title}  ({_runner.QubitCount} qubits, {_runner.Steps.Count} gates)");
+            SwitchView(_currentView);
+            PropagateState();
             UpdateInfo(title);
+
+            Debug.Log($"[QuantumViz] Loaded: {title}  ({_runner.QubitCount}q, {_runner.Steps.Count} gates)");
+        }
+
+        /// <summary>Called when circle view's interactive builder modifies the circuit.</summary>
+        private void OnCircuitChangedByBuilder(List<GateStep> steps, int qubitCount)
+        {
+            // Rebuild runner from step list
+            var circuit = new QuantumCircuit(qubitCount);
+            foreach (var step in steps)
+                circuit.AddInstruction(new QuantumInstruction(step.Gate, step.QubitIndices));
+
+            _runner = CircuitRunner.FromBuilder(circuit);
+            _currentTitle = "Custom Circuit";
+            _currentStep = _runner.Steps.Count - 1;
+
+            if (config.enableNoise)
+                _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
+
+            _stateView.Rebuild(qubitCount);
+            _blochView.Rebuild(qubitCount, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
+
+            PropagateState();
+            UpdateInfo("Custom Circuit");
         }
 
         private void ResetCircuit()
         {
             _currentStep = -1;
             _playTimer = 0f;
-            _histogram?.StopSampling();
-            UpdateVisualisation();
+            _playing = false;
+            _circuitView.SetStep(-1);
+            _circuitView.SetPlaying(false);
+            PropagateState();
         }
 
         private void StepForward()
@@ -365,27 +284,49 @@ namespace QuantumCircuitViz.Demo
             if (_currentStep < _runner.Steps.Count - 1)
             {
                 _currentStep++;
-                UpdateVisualisation();
+                _circuitView.SetStep(_currentStep);
+                PropagateState();
             }
             else
             {
                 _playing = false;
+                _circuitView.SetPlaying(false);
             }
         }
 
         private void StepBackward()
         {
-            if (_runner == null) return;
-            if (_currentStep >= 0)
-            {
-                _currentStep--;
-                UpdateVisualisation();
-            }
+            if (_runner == null || _currentStep < 0) return;
+            _currentStep--;
+            _circuitView.SetStep(_currentStep);
+            PropagateState();
         }
 
-        // ── Visualisation ────────────────────────────────────────────
+        private void TogglePlay()
+        {
+            _playing = !_playing;
+            _circuitView.SetPlaying(_playing);
+        }
 
-        private void UpdateVisualisation()
+        private void ToggleNoise()
+        {
+            config.enableNoise = !config.enableNoise;
+            Debug.Log($"[QuantumViz] Noise: {(config.enableNoise ? "ON" : "OFF")}");
+            if (_runner != null)
+            {
+                if (config.enableNoise)
+                    _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
+                else
+                    _runner.WithNoise(0, 0, 0);
+                PropagateState();
+            }
+            UpdateStatusBar();
+        }
+
+        // ──────────────────────────────────────────────────────────
+        // State propagation
+        // ──────────────────────────────────────────────────────────
+        private void PropagateState()
         {
             if (_runner == null) return;
 
@@ -401,106 +342,44 @@ namespace QuantumCircuitViz.Demo
                 state = _runner.RunUpTo(_currentStep);
             }
 
-            // Bloch spheres
-            UpdateBlochSpheres(state);
+            // Update Circuit View step + gate diagram
+            _circuitView.SetStep(_currentStep);
+            _circuitView.RenderGates();
 
-            // Entanglement links
-            _entanglement?.UpdateEntanglement(_cachedBlochVectors);
+            // Update State View
+            _stateView.UpdateState(state);
 
-            // Qubit inspector — refresh if a qubit is selected
-            if (_inspector != null && _inspector.SelectedQubit >= 0 && _cachedBlochVectors != null)
-            {
-                int q = _inspector.SelectedQubit;
-                if (q < _cachedBlochVectors.Length)
-                    _inspector.ShowQubit(q, _cachedBlochVectors[q]);
-            }
+            // Update Bloch View
+            _blochView.UpdateState(state);
 
-            // Histogram
-            var probs = state.GetProbabilities();
-            _histogram?.UpdateProbabilities(probs);
-
-            // Circuit diagram
-            _diagram?.Render(_runner.Steps, _runner.QubitCount, _currentStep);
-
-            // Phase 4: density matrix + world circuit
-            if (_densityHeatmap != null && _densityHeatmap.gameObject.activeSelf)
-                _densityHeatmap.UpdateState(state);
-            if (_worldCircuitVisible)
-                _worldCircuit?.SetCurrentStep(_currentStep);
-
-            // Info bar
+            // Update info bar
             string noise = config.enableNoise ? " [NOISY]" : "";
             string stepLabel = _currentStep < 0 ? $"Init |0…0⟩{noise}" :
-                $"Step {_currentStep + 1}/{_runner.Steps.Count}: {_runner.Steps[_currentStep].Gate.GetType().Name.Replace("Gate", "")}{noise}";
+                $"Step {_currentStep + 1}/{_runner.Steps.Count}: " +
+                $"{_runner.Steps[_currentStep].Gate.GetType().Name.Replace("Gate", "")}{noise}";
             UpdateStepInfo(stepLabel);
         }
 
-        private void UpdateBlochSpheres(QuantumState state)
+        // ──────────────────────────────────────────────────────────
+        // Export
+        // ──────────────────────────────────────────────────────────
+        private void ExportQASMToClipboard()
         {
-            if (_spheres == null) return;
-
-            _cachedBlochVectors = new Vector3[state.QubitCount];
-
-            if (state.QubitCount == 1)
-            {
-                var bloch = state.GetBlochVector();
-                var v = new Vector3((float)bloch.X, (float)bloch.Z, (float)bloch.Y);
-                _cachedBlochVectors[0] = v;
-                _spheres[0].SetState(v);
-            }
-            else
-            {
-                for (int q = 0; q < state.QubitCount && q < _spheres.Length; q++)
-                {
-                    var bloch = ComputeReducedBlochVector(state, q);
-                    _cachedBlochVectors[q] = bloch;
-                    _spheres[q].SetState(bloch);
-                }
-            }
+            if (_runner == null) return;
+            string qasm = CircuitExporter.ToQASM(_runner);
+            GUIUtility.systemCopyBuffer = qasm;
+            Debug.Log("[QuantumViz] QASM copied to clipboard:\n" + qasm);
         }
 
-        /// <summary>
-        /// Compute the Bloch vector for qubit q by tracing out all other qubits.
-        /// ρ_q = Tr_{others}(|ψ⟩⟨ψ|), then x=Tr(ρ·σx), y=Tr(ρ·σy), z=Tr(ρ·σz).
-        /// </summary>
-        private Vector3 ComputeReducedBlochVector(QuantumState state, int qubit)
+        private void TakeScreenshot()
         {
-            int n = state.QubitCount;
-            int dim = 1 << n;
-            var amps = state.Amplitudes;
-
-            double rho00_r = 0, rho01_r = 0, rho01_i = 0, rho11_r = 0;
-
-            for (int i = 0; i < dim; i++)
-            {
-                int qBit_i = (i >> qubit) & 1;
-                for (int j = 0; j < dim; j++)
-                {
-                    int qBit_j = (j >> qubit) & 1;
-
-                    int mask = ~(1 << qubit) & ((1 << n) - 1);
-                    if ((i & mask) != (j & mask)) continue;
-
-                    var ai = amps[i];
-                    var aj = amps[j];
-                    double re = ai.realPart * aj.realPart + ai.imaginaryPart * aj.imaginaryPart;
-                    double im = ai.imaginaryPart * aj.realPart - ai.realPart * aj.imaginaryPart;
-
-                    if (qBit_i == 0 && qBit_j == 0) rho00_r += re;
-                    else if (qBit_i == 0 && qBit_j == 1) { rho01_r += re; rho01_i += im; }
-                    else if (qBit_i == 1 && qBit_j == 1) rho11_r += re;
-                }
-            }
-
-            float bx = (float)(2.0 * rho01_r);
-            float by = (float)(2.0 * rho01_i);
-            float bz = (float)(rho00_r - rho11_r);
-
-            return new Vector3(bx, bz, by);
+            string path = ScreenshotUtility.Capture(2);
+            Debug.Log($"[QuantumViz] Screenshot saved to: {path}");
         }
 
-        // ── Scene Setup ──────────────────────────────────────────────
-
+        // ──────────────────────────────────────────────────────────
+        // Scene setup
+        // ──────────────────────────────────────────────────────────
         private void EnsureCamera()
         {
             var cam = Camera.main;
@@ -513,8 +392,8 @@ namespace QuantumCircuitViz.Demo
             }
             cam.backgroundColor = new Color(0.04f, 0.04f, 0.1f);
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.transform.position = new Vector3(0, 2f, -8f);
-            cam.transform.LookAt(Vector3.zero);
+            cam.transform.position = new Vector3(0, 1.5f, -5f);
+            cam.transform.LookAt(new Vector3(0, 0.5f, 0));
         }
 
         private void EnsureEventSystem()
@@ -527,402 +406,115 @@ namespace QuantumCircuitViz.Demo
             }
         }
 
+        // ──────────────────────────────────────────────────────────
+        // Canvas + Views
+        // ──────────────────────────────────────────────────────────
         private void CreateCanvas()
         {
             var canvasGo = new GameObject("QuantumCanvas");
             _canvas = canvasGo.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas.sortingOrder = 10;
             canvasGo.AddComponent<CanvasScaler>();
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // Info panel (top-left)
+            // View content area (between tab bar and status bar)
+            var contentGo = new GameObject("ViewContent");
+            _viewContent = contentGo.AddComponent<RectTransform>();
+            _viewContent.SetParent(_canvas.transform, false);
+            _viewContent.anchorMin = new Vector2(0f, 0.04f);
+            _viewContent.anchorMax = new Vector2(1f, 0.96f);
+            _viewContent.offsetMin = _viewContent.offsetMax = Vector2.zero;
+
+            // Info bar (top-left, overlaid on tab area)
             var infoGo = new GameObject("InfoText");
             var infoRt = infoGo.AddComponent<RectTransform>();
             infoRt.SetParent(_canvas.transform, false);
-            infoRt.anchorMin = new Vector2(0.02f, 0.85f);
-            infoRt.anchorMax = new Vector2(0.60f, 0.98f);
-            infoRt.offsetMin = Vector2.zero;
-            infoRt.offsetMax = Vector2.zero;
+            infoRt.anchorMin = new Vector2(0.01f, 0.96f);
+            infoRt.anchorMax = new Vector2(0.28f, 1f);
+            infoRt.offsetMin = infoRt.offsetMax = Vector2.zero;
             _infoText = infoGo.AddComponent<Text>();
-            _infoText.font = Font.CreateDynamicFontFromOSFont("Consolas", 16);
-            _infoText.fontSize = 16;
-            _infoText.color = new Color(0f, 0.9f, 1f);
+            _infoText.font = Font.CreateDynamicFontFromOSFont("Consolas", 11);
+            _infoText.fontSize = 11;
+            _infoText.color = new Color(0f, 0.85f, 1f);
+            _infoText.alignment = TextAnchor.MiddleLeft;
 
-            // Controls hint (bottom-center)
-            var ctrlGo = new GameObject("ControlsText");
-            var ctrlRt = ctrlGo.AddComponent<RectTransform>();
-            ctrlRt.SetParent(_canvas.transform, false);
-            ctrlRt.anchorMin = new Vector2(0.02f, 0.42f);
-            ctrlRt.anchorMax = new Vector2(0.55f, 0.58f);
-            ctrlRt.offsetMin = Vector2.zero;
-            ctrlRt.offsetMax = Vector2.zero;
-            _controlsText = ctrlGo.AddComponent<Text>();
-            _controlsText.font = Font.CreateDynamicFontFromOSFont("Consolas", 11);
-            _controlsText.fontSize = 11;
-            _controlsText.color = new Color(0.5f, 0.6f, 0.7f);
-            UpdateControlsHint();
+            // Status bar (bottom)
+            var statusGo = new GameObject("StatusBar");
+            var statusRt = statusGo.AddComponent<RectTransform>();
+            statusRt.SetParent(_canvas.transform, false);
+            statusRt.anchorMin = new Vector2(0f, 0f);
+            statusRt.anchorMax = new Vector2(1f, 0.038f);
+            statusRt.offsetMin = statusRt.offsetMax = Vector2.zero;
+            statusGo.AddComponent<Image>().color = new Color(0.03f, 0.03f, 0.06f, 0.95f);
+
+            var sbTextGo = new GameObject("StatusText");
+            var sbTextRt = sbTextGo.AddComponent<RectTransform>();
+            sbTextRt.SetParent(statusRt, false);
+            sbTextRt.anchorMin = Vector2.zero;
+            sbTextRt.anchorMax = Vector2.one;
+            sbTextRt.offsetMin = sbTextRt.offsetMax = Vector2.zero;
+            _statusBarText = sbTextGo.AddComponent<Text>();
+            _statusBarText.font = Font.CreateDynamicFontFromOSFont("Consolas", 10);
+            _statusBarText.fontSize = 10;
+            _statusBarText.color = new Color(0.35f, 0.45f, 0.55f);
+            _statusBarText.alignment = TextAnchor.MiddleCenter;
         }
 
-        private void BuildPhase2UI()
+        private void BuildViews()
         {
             var canvasRt = _canvas.GetComponent<RectTransform>();
 
-            // Gate palette (left strip) — starts hidden
-            var paletteGo = new GameObject("PaletteHost");
-            _gatePalette = paletteGo.AddComponent<GatePalette>();
-            _gatePalette.Initialise(canvasRt);
-            _gatePalette.gameObject.SetActive(false);
+            // Tab bar
+            var tabGo = new GameObject("TabBar", typeof(RectTransform));
+            _tabBar = tabGo.AddComponent<ViewTabBar>();
+            _tabBar.Initialise(canvasRt, new[] { "A. Circuit", "B. State", "C. Bloch" });
+            _tabBar.OnTabSelected += (idx) => SwitchView((ViewMode)idx);
 
-            // Circuit canvas (top area) — starts hidden
-            var canvasHost = new GameObject("CircuitCanvasHost");
-            _circuitCanvas = canvasHost.AddComponent<CircuitCanvas>();
-            _circuitCanvas.Initialise(canvasRt, config.qubitCount, 10, _gatePalette);
-            _circuitCanvas.OnCircuitChanged += OnBuilderCircuitChanged;
-            _circuitCanvas.gameObject.SetActive(false);
-
-            // Entanglement visualizer (always active)
-            var entGo = new GameObject("EntanglementViz");
-            _entanglement = entGo.AddComponent<EntanglementVisualizer>();
-
-            // Qubit inspector panel (right side)
-            var inspGo = new GameObject("InspectorHost");
-            _inspector = inspGo.AddComponent<QubitInspectorPanel>();
-            _inspector.Initialise(canvasRt);
-        }
-
-        // ── Phase 3: RL Error Correction ─────────────────────────────
-
-        private void BuildPhase3UI()
-        {
-            var canvasRt = _canvas.GetComponent<RectTransform>();
-
-            // Error correction split-view
-            var qecGo = new GameObject("QECVizHost");
-            _qecViz = qecGo.AddComponent<ErrorCorrectionVisualizer>();
-            _qecViz.Initialise(canvasRt);
-
-            // RL training panel
-            var rlGo = new GameObject("RLPanelHost");
-            _rlPanel = rlGo.AddComponent<RLTrainingPanel>();
-            _rlPanel.Initialise(canvasRt);
-
-            // Error heatmap overlay
-            var heatGo = new GameObject("ErrorHeatmapHost");
-            _errorHeatmap = heatGo.AddComponent<ErrorHeatmapOverlay>();
-            _errorHeatmap.Initialise(canvasRt, config.qubitCount);
-        }
-
-        private void RunQECComparison()
-        {
-            _qecMode = true;
-            _qecRunner = new QECRunner(config.qecCode);
-
-            // Initial state |0⟩
-            var initial = new CSharpNumerics.Numerics.Objects.ComplexVectorN(2);
-            initial[0] = new CSharpNumerics.Numerics.Objects.ComplexNumber(1, 0);
-
-            // Single cycle for syndrome display
-            var cycle = _qecRunner.RunOnce(initial, config.qecErrorRate);
-            _qecViz.ShowCycleResult(cycle, config.qecCode.ToString(), _qecRunner.PhysicalQubits);
-
-            // Monte-Carlo comparison
-            var comparison = _qecRunner.RunComparison(initial, config.qecErrorRate, config.qecRounds);
-            _qecViz.ShowComparison(comparison, config.qecCode.ToString());
-
-            // Show error heatmap with uniform rate
-            _errorHeatmap.Show();
-            _errorHeatmap.SetUniformRate(config.qecErrorRate);
-
-            // Noise glitch on spheres
-            ApplyNoiseGlitch(config.qecErrorRate);
-
-            Debug.Log($"[QuantumViz] QEC {config.qecCode}: protected={comparison.ProtectedFidelity:F4}  " +
-                      $"unprotected={comparison.UnprotectedFidelity:F4}  Δ={comparison.Improvement:F4}");
-            UpdateControlsHint();
-        }
-
-        private void ToggleRLTraining()
-        {
-            if (_rlRunner != null && _rlRunner.IsTraining)
+            // A. Circuit View
+            var cvGo = new GameObject("CircuitView", typeof(RectTransform));
+            _circuitView = cvGo.AddComponent<CircuitGridView>();
+            _circuitView.Initialise(_viewContent, 2);
+            _circuitView.OnCircuitChanged += OnCircuitChangedByBuilder;
+            _circuitView.OnStepChanged += (dir) =>
             {
-                _rlRunner.Stop();
-                _rlPanel.SetStatus("Training stopped");
-                Debug.Log("[QuantumViz] RL training stopped");
-                return;
-            }
-
-            // Build a target circuit: Bell state as default
-            var target = QuantumCircuitBuilder.New(2).H(0).CNOT(0, 1).Build();
-
-            _rlRunner = new RLErrorCorrectionRunner();
-            _rlRunner.OnEpisodeComplete += OnRLEpisode;
-            _rlRunner.OnTrainingComplete += OnRLTrainingDone;
-
-            _rlPanel.Clear();
-            _rlPanel.Show();
-
-            _rlRunner.StartTraining(
-                qubitCount: 2,
-                targetCircuit: target,
-                episodes: config.rlEpisodes,
-                maxGates: config.rlMaxGates,
-                fidelityThreshold: config.rlFidelityThreshold,
-                learningRate: config.rlLearningRate,
-                gamma: config.rlGamma);
-
-            Debug.Log($"[QuantumViz] RL training started: {config.rlEpisodes} episodes");
-        }
-
-        private void OnRLEpisode(EpisodeReport report)
-        {
-            // Called from background thread — queue for main thread
-            lock (_pendingReports) { _pendingReports.Enqueue(report); }
-        }
-
-        private void OnRLTrainingDone(TrainingSummary summary)
-        {
-            // Queue a special marker report
-            lock (_pendingReports)
-            {
-                _pendingReports.Enqueue(new EpisodeReport
-                {
-                    Episode = -1, // sentinel
-                    BestFidelity = summary.BestFidelity,
-                    TotalReward = summary.AverageReward
-                });
-            }
-        }
-
-        private void DrainRLReports()
-        {
-            lock (_pendingReports)
-            {
-                while (_pendingReports.Count > 0)
-                {
-                    var r = _pendingReports.Dequeue();
-                    if (r.Episode == -1)
-                    {
-                        _rlPanel.SetStatus($"Training complete — best fidelity {r.BestFidelity:F4}");
-                        Debug.Log($"[QuantumViz] RL done: best={r.BestFidelity:F4}  avg={r.TotalReward:F3}");
-                    }
-                    else
-                    {
-                        _rlPanel.AddEpisode(r);
-                    }
-                }
-            }
-        }
-
-        private void CycleQECCode()
-        {
-            config.qecCode = config.qecCode switch
-            {
-                QECCodeType.BitFlip3 => QECCodeType.PhaseFlip3,
-                QECCodeType.PhaseFlip3 => QECCodeType.Steane7,
-                QECCodeType.Steane7 => QECCodeType.Shor9,
-                _ => QECCodeType.BitFlip3
+                if (dir > 0) StepForward(); else StepBackward();
             };
-            Debug.Log($"[QuantumViz] QEC code → {config.qecCode}");
+            _circuitView.OnPlayToggle += TogglePlay;
+            _circuitView.OnReset += ResetCircuit;
 
-            if (_qecMode) RunQECComparison();
-            UpdateControlsHint();
+            // B. State View
+            var svGo = new GameObject("StateView", typeof(RectTransform));
+            _stateView = svGo.AddComponent<StateView>();
+            _stateView.Initialise(_viewContent, 2);
+
+            // C. Bloch View
+            var bvGo = new GameObject("BlochView", typeof(RectTransform));
+            _blochView = bvGo.AddComponent<BlochSphereView>();
+            _blochView.Initialise(canvasRt, 2, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
         }
 
-        private void ApplyNoiseGlitch(float errorRate)
-        {
-            if (_spheres == null) return;
-            // Lazily add NoiseGlitchEffect components
-            if (_noiseGlitches == null || _noiseGlitches.Length != _spheres.Length)
-            {
-                _noiseGlitches = new NoiseGlitchEffect[_spheres.Length];
-                for (int i = 0; i < _spheres.Length; i++)
-                {
-                    _noiseGlitches[i] = _spheres[i].gameObject.GetComponent<NoiseGlitchEffect>();
-                    if (_noiseGlitches[i] == null)
-                        _noiseGlitches[i] = _spheres[i].gameObject.AddComponent<NoiseGlitchEffect>();
-                }
-            }
-            foreach (var ng in _noiseGlitches)
-                ng.SetErrorRate(errorRate);
-        }
-
-        private void ClearNoiseGlitch()
-        {
-            if (_noiseGlitches == null) return;
-            foreach (var ng in _noiseGlitches)
-                if (ng != null) ng.Disable();
-        }
-
-        // ── Phase 4: Polish & Export ─────────────────────────────────
-
-        private void BuildPhase4UI()
-        {
-            var canvasRt = _canvas.GetComponent<RectTransform>();
-
-            // Density matrix heatmap (bottom-left)
-            var dmGo = new GameObject("DensityHeatmapHost");
-            _densityHeatmap = dmGo.AddComponent<DensityMatrixHeatmap>();
-            _densityHeatmap.Initialise(canvasRt);
-
-            // 3D world-space circuit
-            var wcGo = new GameObject("WorldCircuit");
-            wcGo.transform.position = new Vector3(0f, -3f, 2f);
-            _worldCircuit = wcGo.AddComponent<WorldSpaceCircuit>();
-        }
-
-        private void ToggleDensityMatrix()
-        {
-            if (_densityHeatmap == null) return;
-
-            if (_densityHeatmap.gameObject.activeSelf)
-            {
-                _densityHeatmap.Hide();
-                Debug.Log("[QuantumViz] Density matrix: OFF");
-            }
-            else
-            {
-                _densityHeatmap.Show();
-                RefreshDensityMatrix();
-                Debug.Log("[QuantumViz] Density matrix: ON");
-            }
-        }
-
-        private void RefreshDensityMatrix()
-        {
-            if (_runner == null || _densityHeatmap == null) return;
-            QuantumState state;
-            if (_currentStep < 0)
-            {
-                var amps = new CSharpNumerics.Numerics.Objects.ComplexVectorN(1 << _runner.QubitCount);
-                amps[0] = new CSharpNumerics.Numerics.Objects.ComplexNumber(1, 0);
-                state = new QuantumState(amps);
-            }
-            else
-            {
-                state = _runner.RunUpTo(_currentStep);
-            }
-            _densityHeatmap.UpdateState(state);
-        }
-
-        private void ToggleWorldCircuit()
-        {
-            if (_worldCircuit == null || _runner == null) return;
-            _worldCircuitVisible = !_worldCircuitVisible;
-
-            if (_worldCircuitVisible)
-            {
-                _worldCircuit.BuildCircuit(_runner);
-                _worldCircuit.SetCurrentStep(_currentStep);
-                _worldCircuit.Show();
-                Debug.Log("[QuantumViz] 3D circuit: ON");
-            }
-            else
-            {
-                _worldCircuit.Hide();
-                Debug.Log("[QuantumViz] 3D circuit: OFF");
-            }
-        }
-
-        private void ExportQASMToClipboard()
-        {
-            if (_runner == null) return;
-            string qasm = CircuitExporter.ToQASM(_runner);
-            GUIUtility.systemCopyBuffer = qasm;
-            Debug.Log("[QuantumViz] QASM copied to clipboard:\n" + qasm);
-        }
-
-        private void ExportJSONToClipboard()
-        {
-            if (_runner == null) return;
-            string json = CircuitExporter.ToJSON(_runner);
-            GUIUtility.systemCopyBuffer = json;
-            Debug.Log("[QuantumViz] JSON copied to clipboard");
-        }
-
-        private void TakeScreenshot()
-        {
-            string path = ScreenshotUtility.Capture(2);
-            Debug.Log($"[QuantumViz] Screenshot saved to: {path}");
-        }
-
-        private void OnDestroy()
-        {
-            _rlRunner?.Stop();
-        }
-
-        private void UpdateControlsHint()
-        {
-            if (_controlsText == null) return;
-            string builderHint = _builderMode ? " [BUILDER]" : "";
-            string qecHint = _qecMode ? $" [QEC:{config.qecCode}]" : "";
-            _controlsText.text =
-                $"←/→ Step  Space Play  R Reset  N Noise  G Builder  M Measure{builderHint}\n" +
-                $"Q QEC  E RL-Train  C Cycle-Code{qecHint}  D Density  W 3D-Circuit  F5 QASM  F12 Screenshot  |  1-7 Presets";
-        }
-
-        private void BuildSpheres()
-        {
-            if (_spheres != null)
-                foreach (var s in _spheres) if (s != null) Destroy(s.gameObject);
-
-            int n = _runner.QubitCount;
-            _spheres = new BlochSphereRenderer[n];
-            float totalWidth = (n - 1) * config.sphereSpacing;
-
-            for (int i = 0; i < n; i++)
-            {
-                var go = new GameObject($"BlochSphere_q{i}");
-                go.transform.position = new Vector3(-totalWidth / 2f + i * config.sphereSpacing, 0, 0);
-
-                // Add a collider so sphere-click raycasts work
-                var col = go.AddComponent<SphereCollider>();
-                col.radius = config.sphereRadius;
-
-                var renderer = go.AddComponent<BlochSphereRenderer>();
-                renderer.Initialise(config.sphereRadius, config.wireframeSegments, config.animationSpeed);
-                renderer.SetStateImmediate(Vector3.up);
-                _spheres[i] = renderer;
-            }
-
-            // Re-init entanglement with new spheres
-            _entanglement?.Initialise(_spheres);
-
-            // Clear inspector on circuit change
-            _inspector?.ClearInspector();
-        }
-
-        private void BuildHistogram()
-        {
-            if (_histogram != null) Destroy(_histogram.gameObject);
-            var go = new GameObject("Histogram");
-            _histogram = go.AddComponent<MeasurementHistogram>();
-
-            // Move histogram left when inspector is visible
-            _histogram.Initialise(_canvas.GetComponent<RectTransform>(), _runner.QubitCount);
-        }
-
-        private void BuildDiagram()
-        {
-            if (_diagram != null) Destroy(_diagram.gameObject);
-            var go = new GameObject("Diagram");
-            _diagram = go.AddComponent<CircuitDiagramRenderer>();
-            _diagram.Initialise(_canvas.GetComponent<RectTransform>());
-        }
-
+        // ──────────────────────────────────────────────────────────
+        // HUD updates
+        // ──────────────────────────────────────────────────────────
         private void UpdateInfo(string title)
         {
             if (_infoText != null)
-                _infoText.text = $"Quantum Circuit Visualizer\n{title}";
+                _infoText.text = title;
         }
 
         private void UpdateStepInfo(string stepLabel)
         {
             if (_infoText != null)
-            {
-                string[] lines = _infoText.text.Split('\n');
-                string title = lines.Length > 1 ? lines[1] : "";
-                _infoText.text = $"Quantum Circuit Visualizer — {stepLabel}\n{title}";
-            }
+                _infoText.text = $"{_currentTitle} — {stepLabel}";
+        }
+
+        private void UpdateStatusBar()
+        {
+            if (_statusBarText == null) return;
+            string noise = config.enableNoise ? " [NOISY]" : "";
+            _statusBarText.text =
+                $"Tab View  ←/→ Step  Space Play  R Reset  N Noise{noise}  |  F5 QASM  F12 Shot  |  1-7 Presets";
         }
     }
 }

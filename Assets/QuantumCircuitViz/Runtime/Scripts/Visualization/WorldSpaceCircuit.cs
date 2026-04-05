@@ -14,8 +14,8 @@ namespace QuantumCircuitViz.Visualization
     {
         private readonly List<GameObject> _objects = new List<GameObject>();
         private int _qubitCount;
-        private float _wireSpacing = 1.2f;
-        private float _gateSpacing = 1.0f;
+        private float _wireSpacing = 0.8f;
+        private float _gateSpacing = 0.7f;
         private int _currentStep = -1;
 
         private static readonly Color WireColor = new Color(0f, 0.5f, 0.8f, 0.6f);
@@ -24,7 +24,7 @@ namespace QuantumCircuitViz.Visualization
         private static readonly Color ControlDotColor = new Color(1f, 0.8f, 0f, 0.9f);
         private static readonly Color TextColor = new Color(0.9f, 0.95f, 1f);
 
-        public void Initialise(float wireSpacing = 1.2f, float gateSpacing = 1.0f)
+        public void Initialise(float wireSpacing = 0.8f, float gateSpacing = 0.7f)
         {
             _wireSpacing = wireSpacing;
             _gateSpacing = gateSpacing;
@@ -53,7 +53,7 @@ namespace QuantumCircuitViz.Visualization
 
                 // Qubit label
                 var label = CreateWorldLabel($"|q{q}⟩",
-                    new Vector3(-_gateSpacing - 0.6f, y, 0), 0.04f);
+                    new Vector3(-_gateSpacing - 0.4f, y, 0), 0.025f);
                 _objects.Add(label);
             }
 
@@ -179,14 +179,14 @@ namespace QuantumCircuitViz.Visualization
             go.name = $"Gate_{stepIndex}";
             go.transform.SetParent(transform, false);
             go.transform.localPosition = localPos;
-            go.transform.localScale = new Vector3(0.6f, 0.6f, 0.3f);
+            go.transform.localScale = new Vector3(0.4f, 0.4f, 0.2f);
 
             var rend = go.GetComponent<Renderer>();
             rend.material = new Material(Shader.Find("Sprites/Default"));
             rend.material.color = GateColor;
 
             // Label as child TextMesh
-            var labelObj = CreateWorldLabel(label, localPos + Vector3.back * 0.2f, 0.05f);
+            var labelObj = CreateWorldLabel(label, localPos + Vector3.back * 0.15f, 0.03f);
             labelObj.transform.SetParent(go.transform, true);
 
             // Remove collider (we don't need click on gate boxes)
@@ -202,7 +202,7 @@ namespace QuantumCircuitViz.Visualization
             go.name = "ControlDot";
             go.transform.SetParent(transform, false);
             go.transform.localPosition = localPos;
-            go.transform.localScale = Vector3.one * 0.2f;
+            go.transform.localScale = Vector3.one * 0.12f;
 
             var rend = go.GetComponent<Renderer>();
             rend.material = new Material(Shader.Find("Sprites/Default"));
@@ -223,7 +223,7 @@ namespace QuantumCircuitViz.Visualization
             var tm = go.AddComponent<TextMesh>();
             tm.text = text;
             tm.characterSize = charSize;
-            tm.fontSize = 64;
+            tm.fontSize = 48;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
             tm.color = TextColor;
