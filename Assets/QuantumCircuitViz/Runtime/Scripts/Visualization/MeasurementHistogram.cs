@@ -14,6 +14,7 @@ namespace QuantumCircuitViz.Visualization
     public class MeasurementHistogram : MonoBehaviour
     {
         private RectTransform _container;
+        private int _qubitCount;
         private Image[] _bars;
         private Text[] _labels;
         private Text _titleText;
@@ -27,6 +28,7 @@ namespace QuantumCircuitViz.Visualization
 
         public void Initialise(RectTransform parent, int qubitCount)
         {
+            _qubitCount = qubitCount;
             _stateCount = 1 << qubitCount;
 
             // Container
@@ -113,6 +115,33 @@ namespace QuantumCircuitViz.Visualization
             }
         }
 
+        public void Rebuild(int qubitCount)
+        {
+            _qubitCount = qubitCount;
+            _stateCount = 1 << qubitCount;
+
+            if (_samplingCoroutine != null)
+            {
+                StopCoroutine(_samplingCoroutine);
+                _samplingCoroutine = null;
+            }
+
+            for (int i = transform.childCount - 1; i >= 0; i--)
+                Destroy(transform.GetChild(i).gameObject);
+
+            Initialise(_container.parent as RectTransform, _qubitCount);
+        }
+
+        public void Show()
+        {
+            gameObject.SetActive(true);
+        }
+
+        public void Hide()
+        {
+            gameObject.SetActive(false);
+        }
+
         public void UpdateProbabilities(VectorN probs)
         {
             if (_bars == null) return;
@@ -141,6 +170,16 @@ namespace QuantumCircuitViz.Visualization
         {
             if (_samplingCoroutine != null)
                 StopCoroutine(_samplingCoroutine);
+
+            if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+            {
+                UpdateProbabilities(probs);
+                if (_shotCountText != null)
+                    _shotCountText.text = "";
+                _samplingCoroutine = null;
+                return;
+            }
+
             _samplingCoroutine = StartCoroutine(SamplingRoutine(probs, totalShots, shotsPerSecond));
         }
 

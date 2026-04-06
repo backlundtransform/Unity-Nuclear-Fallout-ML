@@ -21,14 +21,18 @@ namespace QuantumCircuitViz.Visualization
     {
         // ── Events ───────────────────────────────────────────────
         public event Action<List<GateStep>, int> OnCircuitChanged;
+        public event Action<int> OnMeasureRequested;
         public event Action<int> OnStepChanged;
         public event Action OnPlayToggle;
         public event Action OnReset;
+        /// <summary>Fires when the user creates a new blank circuit with the given qubit count.</summary>
+        public event Action<int> OnNewCircuit;
 
         // ── Layout panels ────────────────────────────────────────
         private RectTransform _container;
         private RectTransform _palettePanel;
         private RectTransform _gridPanel;
+        private RectTransform _classicalPanel;
         private RectTransform _controlPanel;
 
         // ── Tooltip ──────────────────────────────────────────────
@@ -38,7 +42,7 @@ namespace QuantumCircuitViz.Visualization
         // ── Status / placement mode ──────────────────────────────
         private Text _statusText;
         private GateInfo _selectedGate;
-        private int _placementControlQubit = -1;
+        private readonly List<int> _pendingGateQubits = new List<int>();
 
         // ── Circuit data ─────────────────────────────────────────
         private List<GateStep> _steps = new List<GateStep>();
@@ -54,8 +58,12 @@ namespace QuantumCircuitViz.Visualization
 
         // ── Transport buttons ────────────────────────────────────
         private Button _btnStepBack, _btnPlayPause, _btnStepFwd, _btnReset, _btnClear;
+        private Button _btnUndo, _btnNew, _btnQubitMinus, _btnQubitPlus;
         private Text _playPauseText;
         private Text _stepCounterText;
+        private Text _qubitCountText;
+        private Text _classicalHeaderText;
+        private Text[] _classicalBitTexts;
 
         // ── Palette buttons ──────────────────────────────────────
         private readonly Dictionary<GateInfo, Image> _paletteBtnImages = new Dictionary<GateInfo, Image>();
@@ -71,6 +79,45 @@ namespace QuantumCircuitViz.Visualization
         public int CurrentStep => _currentStep;
         public int StepCount => _steps.Count;
         public bool IsPlaying => _isPlaying;
+        public int QubitCount => _qubitCount;
+        public int PendingQubitCount => _pendingQubitCount;
+
+        /// <summary>Change qubit count for the next new circuit (does not alter current circuit).</summary>
+        public void SetPendingQubitCount(int count)
+        {
+            _pendingQubitCount = Mathf.Clamp(count, 1, 5);
+            UpdateQubitCountLabel();
+        }
+
+        /// <summary>Change qubit count and immediately rebuild the circuit as a blank canvas.</summary>
+        public void ChangeQubitCount(int delta)
+        {
+            SetPendingQubitCount(_pendingQubitCount + delta);
+            NewBlankCircuit();
+        }
+
+        /// <summary>Create a new blank circuit with the pending qubit count.</summary>
+        public void NewBlankCircuit()
+        {
+            _qubitCount = _pendingQubitCount;
+            _pendingQubitCount = _qubitCount;
+            _steps.Clear();
+            _currentStep = -1;
+            CancelPlacement();
+            RebuildGrid();
+            RenderGates();
+            UpdateStepCounter();
+            UpdateQubitCountLabel();
+            OnNewCircuit?.Invoke(_qubitCount);
+        }
+
+        private int _pendingQubitCount = 2;
+
+        private void UpdateQubitCountLabel()
+        {
+            if (_qubitCountText != null)
+                _qubitCountText.text = $"{_pendingQubitCount}q";
+        }
 
         // ──────────────────────────────────────────────────────────
         // Initialise
@@ -78,6 +125,7 @@ namespace QuantumCircuitViz.Visualization
         public void Initialise(RectTransform parent, int qubitCount)
         {
             _qubitCount = qubitCount;
+            _pendingQubitCount = qubitCount;
             gameObject.name = "CircuitView";
 
             _container = GetComponent<RectTransform>();
@@ -89,6 +137,7 @@ namespace QuantumCircuitViz.Visualization
 
             BuildPalette();
             BuildGrid();
+            BuildClassicalRegisterPanel();
             BuildControls();
             BuildTooltip();
         }
@@ -99,12 +148,16 @@ namespace QuantumCircuitViz.Visualization
         public void SetCircuit(IReadOnlyList<GateStep> steps, int qubitCount)
         {
             _qubitCount = qubitCount;
+            _pendingQubitCount = qubitCount;
             _steps = new List<GateStep>(steps);
             _currentStep = -1;
             CancelPlacement();
             RebuildGrid();
+            RebuildClassicalRegister();
             RenderGates();
             UpdateStepCounter();
+            UpdateQubitCountLabel();
+            ClearClassicalRegister();
         }
 
         public void SetStep(int step)
@@ -214,18 +267,13 @@ namespace QuantumCircuitViz.Visualization
             CancelPlacement();
 
             _selectedGate = gate;
-            _placementControlQubit = -1;
+            _pendingGateQubits.Clear();
 
             // Highlight the selected palette button
             if (_paletteBtnImages.TryGetValue(gate, out var img))
                 img.color = gate.Color;
 
-            if (gate.QubitCount == 1)
-                SetStatus($"Click a qubit wire to place {gate.DisplayName}");
-            else if (gate.QubitCount == 2)
-                SetStatus($"Click CONTROL qubit for {gate.DisplayName}");
-            else
-                SetStatus($"Click first CONTROL qubit for {gate.DisplayName}");
+            SetStatus(BuildPlacementPrompt(gate, _pendingGateQubits));
         }
 
         private void CancelPlacement()
@@ -233,8 +281,51 @@ namespace QuantumCircuitViz.Visualization
             if (_selectedGate != null && _paletteBtnImages.TryGetValue(_selectedGate, out var img))
                 img.color = _selectedGate.Color * 0.7f;
             _selectedGate = null;
-            _placementControlQubit = -1;
+            _pendingGateQubits.Clear();
             SetStatus("");
+        }
+
+        private string BuildPlacementPrompt(GateInfo gate, IReadOnlyList<int> selectedQubits)
+        {
+            if (gate == null)
+                return "";
+
+            if (gate.QubitCount == 1)
+                return $"Click a qubit wire to place {gate.DisplayName}";
+
+            if (gate.QubitCount == 2)
+            {
+                if (gate.Symbol == "SW")
+                {
+                    if (selectedQubits.Count == 0)
+                        return "Click first qubit for SWAP";
+                    return $"Click second qubit for SWAP  (first=q{selectedQubits[0]})";
+                }
+
+                if (selectedQubits.Count == 0)
+                    return $"Click CONTROL qubit for {gate.DisplayName}";
+                return $"Click TARGET qubit for {gate.DisplayName}  (control=q{selectedQubits[0]})";
+            }
+
+            if (gate.Symbol == "CCX")
+            {
+                if (selectedQubits.Count == 0)
+                    return "Click first CONTROL qubit for Toffoli";
+                if (selectedQubits.Count == 1)
+                    return $"Click second CONTROL qubit for Toffoli  (first=q{selectedQubits[0]})";
+                return $"Click TARGET qubit for Toffoli  (controls=q{selectedQubits[0]},q{selectedQubits[1]})";
+            }
+
+            if (gate.Symbol == "CSW")
+            {
+                if (selectedQubits.Count == 0)
+                    return "Click CONTROL qubit for Fredkin";
+                if (selectedQubits.Count == 1)
+                    return $"Click first TARGET qubit for Fredkin  (control=q{selectedQubits[0]})";
+                return $"Click second TARGET qubit for Fredkin  (control=q{selectedQubits[0]}, target=q{selectedQubits[1]})";
+            }
+
+            return $"Click qubit {selectedQubits.Count + 1} for {gate.DisplayName}";
         }
 
         // ──────────────────────────────────────────────────────────
@@ -245,7 +336,7 @@ namespace QuantumCircuitViz.Visualization
             var go = UIGo("Grid");
             _gridPanel = go.GetComponent<RectTransform>();
             _gridPanel.SetParent(_container, false);
-            _gridPanel.anchorMin = new Vector2(0f, 0.15f);
+            _gridPanel.anchorMin = new Vector2(0f, 0.24f);
             _gridPanel.anchorMax = new Vector2(1f, 0.87f);
             _gridPanel.offsetMin = _gridPanel.offsetMax = Vector2.zero;
 
@@ -255,12 +346,146 @@ namespace QuantumCircuitViz.Visualization
             BuildStepCursor();
         }
 
+        private void BuildClassicalRegisterPanel()
+        {
+            var go = UIGo("ClassicalRegister");
+            _classicalPanel = go.GetComponent<RectTransform>();
+            _classicalPanel.SetParent(_container, false);
+            _classicalPanel.anchorMin = new Vector2(0f, 0.15f);
+            _classicalPanel.anchorMax = new Vector2(1f, 0.23f);
+            _classicalPanel.offsetMin = _classicalPanel.offsetMax = Vector2.zero;
+
+            go.AddComponent<Image>().color = new Color(0.05f, 0.07f, 0.10f, 0.95f);
+
+            _classicalHeaderText = CreateText(_classicalPanel, "ClassicalHeader", "creg c[2]  Measurement pending",
+                new Vector2(0.02f, 0.08f), new Vector2(0.22f, 0.92f), 12,
+                new Color(0.75f, 0.82f, 0.95f), TextAnchor.MiddleLeft).GetComponent<Text>();
+
+            RebuildClassicalRegister();
+        }
+
+        private void RebuildClassicalRegister()
+        {
+            if (_classicalPanel == null)
+                return;
+
+            for (int i = _classicalPanel.childCount - 1; i >= 0; i--)
+            {
+                var child = _classicalPanel.GetChild(i);
+                if (child.name.StartsWith("ClassicalBit_") || child.name.StartsWith("ClassicalValue_"))
+                    DestroyImmediate(child.gameObject);
+            }
+
+            if (_classicalHeaderText != null)
+                _classicalHeaderText.text = $"creg c[{_qubitCount}]  Measurement pending";
+
+            _classicalBitTexts = new Text[_qubitCount];
+            float startX = 0.25f;
+            float gap = _qubitCount >= 4 ? 0.008f : 0.012f;
+            float availableWidth = 0.72f;
+            float width = (availableWidth - gap * Mathf.Max(_qubitCount - 1, 0)) / Mathf.Max(_qubitCount, 1);
+
+            for (int i = 0; i < _qubitCount; i++)
+            {
+                float x0 = startX + i * (width + gap);
+                float x1 = Mathf.Min(x0 + width, 0.98f);
+
+                var boxGo = UIGo($"ClassicalBit_{i}");
+                var boxRt = boxGo.GetComponent<RectTransform>();
+                boxRt.SetParent(_classicalPanel, false);
+                boxRt.anchorMin = new Vector2(x0, 0.14f);
+                boxRt.anchorMax = new Vector2(x1, 0.86f);
+                boxRt.offsetMin = boxRt.offsetMax = Vector2.zero;
+                boxGo.AddComponent<Image>().color = new Color(0.10f, 0.16f, 0.24f, 0.95f);
+
+                CreateText(boxRt, $"ClassicalLabel_{i}", $"c[{i}]",
+                    new Vector2(0.05f, 0.58f), new Vector2(0.95f, 0.92f), 9,
+                    new Color(0.55f, 0.75f, 0.95f), TextAnchor.MiddleCenter);
+
+                var valueGo = UIGo($"ClassicalValue_{i}");
+                var valueRt = valueGo.GetComponent<RectTransform>();
+                valueRt.SetParent(boxRt, false);
+                valueRt.anchorMin = new Vector2(0.08f, 0.08f);
+                valueRt.anchorMax = new Vector2(0.92f, 0.55f);
+                valueRt.offsetMin = valueRt.offsetMax = Vector2.zero;
+                _classicalBitTexts[i] = valueGo.AddComponent<Text>();
+                _classicalBitTexts[i].text = ".";
+                _classicalBitTexts[i].font = Font.CreateDynamicFontFromOSFont("Consolas", 18);
+                _classicalBitTexts[i].fontSize = 18;
+                _classicalBitTexts[i].alignment = TextAnchor.MiddleCenter;
+                _classicalBitTexts[i].color = new Color(0.95f, 0.97f, 1f);
+            }
+        }
+
+        public void ClearClassicalRegister()
+        {
+            if (_classicalBitTexts == null)
+                return;
+
+            for (int i = 0; i < _classicalBitTexts.Length; i++)
+            {
+                if (_classicalBitTexts[i] != null)
+                    _classicalBitTexts[i].text = ".";
+            }
+
+            if (_classicalHeaderText != null)
+                _classicalHeaderText.text = $"creg c[{_qubitCount}]  Measurement pending";
+        }
+
+        public void SetClassicalRegister(string bitString)
+        {
+            if (_classicalBitTexts == null)
+                return;
+
+            for (int i = 0; i < _classicalBitTexts.Length; i++)
+            {
+                if (_classicalBitTexts[i] == null)
+                    continue;
+
+                _classicalBitTexts[i].text = i < bitString.Length ? bitString[i].ToString() : ".";
+            }
+
+            if (_classicalHeaderText != null)
+                _classicalHeaderText.text = $"creg c[{_qubitCount}]  Last readout: {bitString}";
+        }
+
+        public void SetClassicalBit(int index, int? value)
+        {
+            if (_classicalBitTexts == null || index < 0 || index >= _classicalBitTexts.Length)
+                return;
+
+            _classicalBitTexts[index].text = value.HasValue ? value.Value.ToString() : ".";
+        }
+
+        public void SetClassicalBits(IReadOnlyList<int?> values, string headerSuffix = null)
+        {
+            if (_classicalBitTexts == null)
+                return;
+
+            for (int i = 0; i < _classicalBitTexts.Length; i++)
+            {
+                int? value = values != null && i < values.Count ? values[i] : null;
+                _classicalBitTexts[i].text = value.HasValue ? value.Value.ToString() : ".";
+            }
+
+            if (_classicalHeaderText != null)
+            {
+                string suffix = string.IsNullOrWhiteSpace(headerSuffix) ? "Measurement pending" : headerSuffix;
+                _classicalHeaderText.text = $"creg c[{_qubitCount}]  {suffix}";
+            }
+        }
+
         private void RebuildGrid()
         {
-            // Destroy old wires and rebuild
-            if (_wireImages != null)
-                foreach (var w in _wireImages)
-                    if (w != null) Destroy(w.gameObject);
+            // Clear rendered gate blocks first (they are also grid children)
+            foreach (var go in _renderedBlocks)
+                if (go != null) DestroyImmediate(go);
+            _renderedBlocks.Clear();
+
+            // Destroy ALL grid children immediately so new wires are the only children
+            for (int i = _gridPanel.childCount - 1; i >= 0; i--)
+                DestroyImmediate(_gridPanel.GetChild(i).gameObject);
+
             BuildWires();
             BuildStepCursor();
         }
@@ -330,60 +555,25 @@ namespace QuantumCircuitViz.Visualization
         {
             if (_selectedGate == null) return;
 
-            if (_selectedGate.QubitCount == 1)
+            if (_pendingGateQubits.Contains(qubit))
             {
-                // Place single-qubit gate
-                var gate = _selectedGate.Create();
-                _steps.Add(new GateStep(gate, new List<int> { qubit }));
-                CancelPlacement();
-                RenderGates();
-                NotifyCircuitChanged();
+                SetStatus($"q{qubit} is already selected for {_selectedGate.DisplayName}");
+                return;
             }
-            else if (_selectedGate.QubitCount == 2)
+
+            _pendingGateQubits.Add(qubit);
+
+            if (_pendingGateQubits.Count < _selectedGate.QubitCount)
             {
-                if (_placementControlQubit < 0)
-                {
-                    _placementControlQubit = qubit;
-                    SetStatus($"Click TARGET qubit for {_selectedGate.DisplayName}  (control=q{qubit})");
-                }
-                else
-                {
-                    if (qubit == _placementControlQubit) return; // same qubit, ignore
-                    var gate = _selectedGate.Create();
-                    _steps.Add(new GateStep(gate, new List<int> { _placementControlQubit, qubit }));
-                    CancelPlacement();
-                    RenderGates();
-                    NotifyCircuitChanged();
-                }
+                SetStatus(BuildPlacementPrompt(_selectedGate, _pendingGateQubits));
+                return;
             }
-            else if (_selectedGate.QubitCount == 3)
-            {
-                // Toffoli/Fredkin: need 2 controls + 1 target
-                if (_placementControlQubit < 0)
-                {
-                    _placementControlQubit = qubit;
-                    SetStatus($"Click second CONTROL qubit  (first=q{qubit})");
-                }
-                else if (_placementControlQubit >= 0 && _placementControlQubit < 100)
-                {
-                    // Encode both controls: use _placementControlQubit for first, store second
-                    int c1 = _placementControlQubit;
-                    if (qubit == c1) return;
-                    _placementControlQubit = c1 * 100 + qubit + 1; // encode
-                    SetStatus($"Click TARGET qubit  (controls=q{c1},q{qubit})");
-                }
-                else
-                {
-                    int c1 = _placementControlQubit / 100;
-                    int c2 = (_placementControlQubit % 100) - 1;
-                    if (qubit == c1 || qubit == c2) return;
-                    var gate = _selectedGate.Create();
-                    _steps.Add(new GateStep(gate, new List<int> { c1, c2, qubit }));
-                    CancelPlacement();
-                    RenderGates();
-                    NotifyCircuitChanged();
-                }
-            }
+
+            var gate = _selectedGate.Create();
+            _steps.Add(new GateStep(gate, new List<int>(_pendingGateQubits)));
+            CancelPlacement();
+            RenderGates();
+            NotifyCircuitChanged();
         }
 
         private void NotifyCircuitChanged()
@@ -400,8 +590,6 @@ namespace QuantumCircuitViz.Visualization
             foreach (var go in _renderedBlocks)
                 if (go != null) Destroy(go);
             _renderedBlocks.Clear();
-
-            if (_steps.Count == 0) return;
 
             float rowH = 1f / Mathf.Max(_qubitCount, 1);
             int totalSteps = _steps.Count;
@@ -517,8 +705,16 @@ namespace QuantumCircuitViz.Visualization
                 mRt.anchorMin = new Vector2(xEnd, yMid - rowH * 0.25f);
                 mRt.anchorMax = new Vector2(xEnd + 0.03f, yMid + rowH * 0.25f);
                 mRt.offsetMin = mRt.offsetMax = Vector2.zero;
-                mGo.AddComponent<Image>().color = new Color(0.6f, 0.6f, 0.4f, 0.6f);
+                var mImg = mGo.AddComponent<Image>();
+                mImg.color = new Color(0.6f, 0.6f, 0.4f, 0.75f);
                 CreateChildText(mRt, "M", 10, Color.white, TextAnchor.MiddleCenter);
+
+                int qubitIndex = q;
+                var btn = mGo.AddComponent<Button>();
+                btn.onClick.AddListener(() => OnMeasureRequested?.Invoke(qubitIndex));
+
+                var trigger = mGo.AddComponent<EventTrigger>();
+                AddHoverEvents(trigger, $"Measure q{q} -> c{q}\nClick to sample current state");
                 _renderedBlocks.Add(mGo);
             }
 
@@ -597,6 +793,10 @@ namespace QuantumCircuitViz.Visualization
                 new Color(0.35f, 0.2f, 0.15f), () => OnReset?.Invoke());
             bx += bw + 0.015f;
 
+            _btnUndo = CreateControlButton("Undo", new Vector2(bx, by), new Vector2(bx + bw * 1.15f, bh),
+                new Color(0.3f, 0.2f, 0.4f), UndoLastGate);
+            bx += bw * 1.15f + 0.01f;
+
             _btnClear = CreateControlButton("Clear", new Vector2(bx, by), new Vector2(bx + bw * 1.2f, bh),
                 new Color(0.4f, 0.15f, 0.15f), ClearCircuit);
             bx += bw * 1.2f + 0.015f;
@@ -605,6 +805,27 @@ namespace QuantumCircuitViz.Visualization
             _stepCounterText = CreateText(_controlPanel, "StepCounter", "Step 0/0",
                 new Vector2(bx, by), new Vector2(bx + 0.15f, bh), 12,
                 new Color(0.6f, 0.75f, 0.9f), TextAnchor.MiddleLeft).GetComponent<Text>();
+
+            // ── Qubit selector + New button (right side) ──
+            float rx = 0.98f;
+            float rbw = 0.04f;
+
+            rx -= rbw;
+            _btnQubitPlus = CreateControlButton("+", new Vector2(rx, by), new Vector2(rx + rbw, bh),
+                new Color(0.15f, 0.35f, 0.25f), () => ChangeQubitCount(1));
+
+            rx -= 0.055f;
+            _qubitCountText = CreateText(_controlPanel, "QubitCount", $"{_pendingQubitCount}q",
+                new Vector2(rx, by), new Vector2(rx + 0.055f, bh), 13,
+                new Color(0f, 0.85f, 1f), TextAnchor.MiddleCenter).GetComponent<Text>();
+
+            rx -= rbw;
+            _btnQubitMinus = CreateControlButton("−", new Vector2(rx, by), new Vector2(rx + rbw, bh),
+                new Color(0.35f, 0.2f, 0.15f), () => ChangeQubitCount(-1));
+
+            rx -= bw * 1.3f + 0.01f;
+            _btnNew = CreateControlButton("New", new Vector2(rx, by), new Vector2(rx + bw * 1.3f, bh),
+                new Color(0.1f, 0.3f, 0.5f), NewBlankCircuit);
         }
 
         private Button CreateControlButton(string label, Vector2 anchorMin, Vector2 anchorMax,
@@ -632,6 +853,20 @@ namespace QuantumCircuitViz.Visualization
             RenderGates();
             UpdateStepCounter();
             NotifyCircuitChanged();
+        }
+
+        public void UndoLastGate()
+        {
+            if (_steps.Count == 0)
+                return;
+
+            _steps.RemoveAt(_steps.Count - 1);
+            _currentStep = Mathf.Clamp(_currentStep, -1, _steps.Count - 1);
+            CancelPlacement();
+            RenderGates();
+            UpdateStepCounter();
+            NotifyCircuitChanged();
+            SetStatus("Last gate removed");
         }
 
         private void UpdateStepCounter()

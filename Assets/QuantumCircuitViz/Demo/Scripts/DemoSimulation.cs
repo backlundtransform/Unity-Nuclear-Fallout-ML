@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
+using System;
 using QuantumCircuitViz.Core;
 using QuantumCircuitViz.Visualization;
 using QuantumCircuitViz.UI;
@@ -9,6 +10,7 @@ using QuantumCircuitViz.Export;
 
 using CSharpNumerics.Engines.Quantum;
 using CSharpNumerics.Engines.Quantum.Algorithms;
+using CSharpNumerics.Numerics.Objects;
 using CSharpNumerics.Physics.Quantum;
 
 namespace QuantumCircuitViz.Demo
@@ -47,6 +49,10 @@ namespace QuantumCircuitViz.Demo
         private bool _playing;
         private float _playTimer;
         private string _currentTitle = "";
+        private QuantumState _measuredStateOverride;
+        private int _measuredStateStep = int.MinValue;
+        private int?[] _classicalRegisterValues;
+        private readonly System.Random _measurementRandom = new System.Random();
 
         // ── Views ────────────────────────────────────────────────
         private enum ViewMode { Circuit, State, Bloch }
@@ -58,6 +64,7 @@ namespace QuantumCircuitViz.Demo
         private CircuitGridView _circuitView;
         private StateView _stateView;
         private BlochSphereView _blochView;
+        private MeasurementHistogram _measurementHistogram;
 
         // ── HUD ──────────────────────────────────────────────────
         private Text _infoText;
@@ -103,7 +110,14 @@ namespace QuantumCircuitViz.Demo
             else if (Input.GetKeyDown(KeyCode.LeftArrow)) StepBackward();
             else if (Input.GetKeyDown(KeyCode.Space)) TogglePlay();
             else if (Input.GetKeyDown(KeyCode.R)) ResetCircuit();
+            else if (Input.GetKeyDown(KeyCode.M)) MeasureCurrentState();
+            else if (Input.GetKeyDown(KeyCode.Backspace) || Input.GetKeyDown(KeyCode.U)) _circuitView.UndoLastGate();
             else if (Input.GetKeyDown(KeyCode.N)) ToggleNoise();
+            else if (Input.GetKeyDown(KeyCode.C)) _circuitView.NewBlankCircuit();
+            else if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus))
+                _circuitView.ChangeQubitCount(1);
+            else if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus))
+                _circuitView.ChangeQubitCount(-1);
             else if (Input.GetKeyDown(KeyCode.F5)) ExportQASMToClipboard();
             else if (Input.GetKeyDown(KeyCode.F12)) TakeScreenshot();
             else if (Input.GetKeyDown(KeyCode.Alpha1)) LoadPreset_BellState();
@@ -121,7 +135,14 @@ namespace QuantumCircuitViz.Demo
             else if (kb.leftArrowKey.wasPressedThisFrame) StepBackward();
             else if (kb.spaceKey.wasPressedThisFrame) TogglePlay();
             else if (kb.rKey.wasPressedThisFrame) ResetCircuit();
+            else if (kb.mKey.wasPressedThisFrame) MeasureCurrentState();
+            else if (kb.backspaceKey.wasPressedThisFrame || kb.uKey.wasPressedThisFrame) _circuitView.UndoLastGate();
             else if (kb.nKey.wasPressedThisFrame) ToggleNoise();
+            else if (kb.cKey.wasPressedThisFrame) _circuitView.NewBlankCircuit();
+            else if (kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame)
+                _circuitView.ChangeQubitCount(1);
+            else if (kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame)
+                _circuitView.ChangeQubitCount(-1);
             else if (kb.f5Key.wasPressedThisFrame) ExportQASMToClipboard();
             else if (kb.f12Key.wasPressedThisFrame) TakeScreenshot();
             else if (kb.digit1Key.wasPressedThisFrame) LoadPreset_BellState();
@@ -151,6 +172,7 @@ namespace QuantumCircuitViz.Demo
             _circuitView.Hide();
             _stateView.Hide();
             _blochView.Hide();
+            _measurementHistogram.Hide();
 
             switch (view)
             {
@@ -159,6 +181,7 @@ namespace QuantumCircuitViz.Demo
                     break;
                 case ViewMode.State:
                     _stateView.Show();
+                    _measurementHistogram.Show();
                     break;
                 case ViewMode.Bloch:
                     _blochView.Show();
@@ -230,6 +253,7 @@ namespace QuantumCircuitViz.Demo
             _currentTitle = title;
             _currentStep = -1;
             _playTimer = 0f;
+            ClearMeasurementState();
 
             if (config.enableNoise)
                 _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
@@ -238,6 +262,8 @@ namespace QuantumCircuitViz.Demo
             _circuitView.SetCircuit(_runner.Steps, _runner.QubitCount);
             _stateView.Rebuild(_runner.QubitCount);
             _blochView.Rebuild(_runner.QubitCount, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
+            _measurementHistogram.Rebuild(_runner.QubitCount);
+            _circuitView.ClearClassicalRegister();
 
             SwitchView(_currentView);
             PropagateState();
@@ -257,15 +283,46 @@ namespace QuantumCircuitViz.Demo
             _runner = CircuitRunner.FromBuilder(circuit);
             _currentTitle = "Custom Circuit";
             _currentStep = _runner.Steps.Count - 1;
+            ClearMeasurementState();
+
+            if (config.enableNoise)
+                _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
+
+            _circuitView.SetCircuit(_runner.Steps, qubitCount);
+            _stateView.Rebuild(qubitCount);
+            _blochView.Rebuild(qubitCount, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
+            _measurementHistogram.Rebuild(qubitCount);
+            _circuitView.ClearClassicalRegister();
+
+            PropagateState();
+            UpdateInfo("Custom Circuit");
+        }
+
+        /// <summary>Called when the user creates a new blank circuit from the qubit selector.</summary>
+        private void OnNewBlankCircuit(int qubitCount)
+        {
+            config.qubitCount = qubitCount;
+            var c = QuantumCircuitBuilder.New(qubitCount).Build();
+            _runner = CircuitRunner.FromBuilder(c);
+            _currentTitle = $"New Circuit  ({qubitCount} qubits)";
+            _currentStep = -1;
+            _playTimer = 0f;
+            _playing = false;
+            ClearMeasurementState();
 
             if (config.enableNoise)
                 _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
 
             _stateView.Rebuild(qubitCount);
             _blochView.Rebuild(qubitCount, config.sphereRadius, config.wireframeSegments, config.animationSpeed);
+            _measurementHistogram.Rebuild(qubitCount);
+            _circuitView.ClearClassicalRegister();
 
+            SwitchView(_currentView);
             PropagateState();
-            UpdateInfo("Custom Circuit");
+            UpdateInfo(_currentTitle);
+
+            Debug.Log($"[QuantumViz] New blank circuit: {qubitCount} qubits — place gates from the palette");
         }
 
         private void ResetCircuit()
@@ -273,9 +330,47 @@ namespace QuantumCircuitViz.Demo
             _currentStep = -1;
             _playTimer = 0f;
             _playing = false;
+            ClearMeasurementState();
             _circuitView.SetStep(-1);
             _circuitView.SetPlaying(false);
             PropagateState();
+        }
+
+        private void MeasureCurrentState(int? requestedQubit = null)
+        {
+            var state = CloneState(GetCurrentState());
+            if (state == null)
+                return;
+
+            EnsureClassicalRegisterSize();
+
+            string message;
+            if (requestedQubit.HasValue)
+            {
+                int qubitIndex = requestedQubit.Value;
+                int result = state.MeasureQubit(qubitIndex, _measurementRandom);
+                _classicalRegisterValues[qubitIndex] = result;
+                message = $"Measured q{qubitIndex} -> c[{qubitIndex}] = {result}";
+            }
+            else
+            {
+                int basisState = state.Measure(_measurementRandom);
+                for (int i = 0; i < state.QubitCount; i++)
+                    _classicalRegisterValues[i] = (basisState >> i) & 1;
+                message = $"Measured q[*] -> {FormatClassicalRegisterSummary()}";
+            }
+
+            _measuredStateOverride = state;
+            _measuredStateStep = _currentStep;
+
+            var probabilities = state.GetProbabilities();
+            _measurementHistogram.UpdateProbabilities(probabilities);
+            _measurementHistogram.AnimateSampling(probabilities, 256, 180f);
+            _circuitView.SetClassicalBits(_classicalRegisterValues, "Measured");
+            _stateView.UpdateState(state);
+            _blochView.UpdateState(state);
+            UpdateStepInfo(message);
+            Debug.Log($"[QuantumViz] {message}");
         }
 
         private void StepForward()
@@ -283,6 +378,7 @@ namespace QuantumCircuitViz.Demo
             if (_runner == null) return;
             if (_currentStep < _runner.Steps.Count - 1)
             {
+                ClearMeasurementState();
                 _currentStep++;
                 _circuitView.SetStep(_currentStep);
                 PropagateState();
@@ -297,6 +393,7 @@ namespace QuantumCircuitViz.Demo
         private void StepBackward()
         {
             if (_runner == null || _currentStep < 0) return;
+            ClearMeasurementState();
             _currentStep--;
             _circuitView.SetStep(_currentStep);
             PropagateState();
@@ -314,6 +411,7 @@ namespace QuantumCircuitViz.Demo
             Debug.Log($"[QuantumViz] Noise: {(config.enableNoise ? "ON" : "OFF")}");
             if (_runner != null)
             {
+                ClearMeasurementState();
                 if (config.enableNoise)
                     _runner.WithNoise(config.depolarizingRate, config.dephasingRate, config.amplitudeDampingGamma);
                 else
@@ -330,17 +428,7 @@ namespace QuantumCircuitViz.Demo
         {
             if (_runner == null) return;
 
-            QuantumState state;
-            if (_currentStep < 0)
-            {
-                var amps = new CSharpNumerics.Numerics.Objects.ComplexVectorN(1 << _runner.QubitCount);
-                amps[0] = new CSharpNumerics.Numerics.Objects.ComplexNumber(1, 0);
-                state = new QuantumState(amps);
-            }
-            else
-            {
-                state = _runner.RunUpTo(_currentStep);
-            }
+            QuantumState state = GetCurrentState();
 
             // Update Circuit View step + gate diagram
             _circuitView.SetStep(_currentStep);
@@ -348,6 +436,15 @@ namespace QuantumCircuitViz.Demo
 
             // Update State View
             _stateView.UpdateState(state);
+
+            // Update measurement probabilities
+            _measurementHistogram.UpdateProbabilities(state.GetProbabilities());
+
+            // Update classical register display
+            if (_classicalRegisterValues != null)
+                _circuitView.SetClassicalBits(_classicalRegisterValues, HasMeasuredBits() ? "Measured" : "Measurement pending");
+            else
+                _circuitView.ClearClassicalRegister();
 
             // Update Bloch View
             _blochView.UpdateState(state);
@@ -476,6 +573,8 @@ namespace QuantumCircuitViz.Demo
             _circuitView = cvGo.AddComponent<CircuitGridView>();
             _circuitView.Initialise(_viewContent, 2);
             _circuitView.OnCircuitChanged += OnCircuitChangedByBuilder;
+            _circuitView.OnMeasureRequested += (qubit) => MeasureCurrentState(qubit);
+            _circuitView.OnNewCircuit += OnNewBlankCircuit;
             _circuitView.OnStepChanged += (dir) =>
             {
                 if (dir > 0) StepForward(); else StepBackward();
@@ -487,6 +586,10 @@ namespace QuantumCircuitViz.Demo
             var svGo = new GameObject("StateView", typeof(RectTransform));
             _stateView = svGo.AddComponent<StateView>();
             _stateView.Initialise(_viewContent, 2);
+
+            var mhGo = new GameObject("MeasurementHistogram", typeof(RectTransform));
+            _measurementHistogram = mhGo.AddComponent<MeasurementHistogram>();
+            _measurementHistogram.Initialise(_viewContent, 2);
 
             // C. Bloch View
             var bvGo = new GameObject("BlochView", typeof(RectTransform));
@@ -514,7 +617,104 @@ namespace QuantumCircuitViz.Demo
             if (_statusBarText == null) return;
             string noise = config.enableNoise ? " [NOISY]" : "";
             _statusBarText.text =
-                $"Tab View  ←/→ Step  Space Play  R Reset  N Noise{noise}  |  F5 QASM  F12 Shot  |  1-7 Presets";
+                $"Tab View  ←/→ Step  Space Play  R Reset  U Undo  M Measure  N Noise{noise}  C New  +/− Qubits  |  F5 QASM  F12 Shot  |  1-7 Presets";
+        }
+
+        private QuantumState GetCurrentState()
+        {
+            if (_runner == null)
+                return null;
+
+            if (_measuredStateOverride != null && _measuredStateStep == _currentStep)
+                return _measuredStateOverride;
+
+            if (_currentStep < 0)
+            {
+                var amps = new ComplexVectorN(1 << _runner.QubitCount);
+                amps[0] = new ComplexNumber(1, 0);
+                return new QuantumState(amps);
+            }
+
+            return _runner.RunUpTo(_currentStep);
+        }
+
+        private void ClearMeasurementState()
+        {
+            _measuredStateOverride = null;
+            _measuredStateStep = int.MinValue;
+
+            if (_runner != null)
+                _classicalRegisterValues = new int?[_runner.QubitCount];
+            else
+                _classicalRegisterValues = null;
+
+            if (_circuitView != null)
+                _circuitView.ClearClassicalRegister();
+        }
+
+        private void EnsureClassicalRegisterSize()
+        {
+            if (_runner == null)
+                return;
+
+            if (_classicalRegisterValues == null || _classicalRegisterValues.Length != _runner.QubitCount)
+                _classicalRegisterValues = new int?[_runner.QubitCount];
+        }
+
+        private bool HasMeasuredBits()
+        {
+            if (_classicalRegisterValues == null)
+                return false;
+
+            for (int i = 0; i < _classicalRegisterValues.Length; i++)
+            {
+                if (_classicalRegisterValues[i].HasValue)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private string FormatClassicalRegisterSummary()
+        {
+            if (_classicalRegisterValues == null)
+                return "c = .";
+
+            var parts = new List<string>(_classicalRegisterValues.Length);
+            for (int i = 0; i < _classicalRegisterValues.Length; i++)
+            {
+                string value = _classicalRegisterValues[i].HasValue ? _classicalRegisterValues[i].Value.ToString() : ".";
+                parts.Add($"c[{i}]={value}");
+            }
+            return string.Join(" ", parts);
+        }
+
+        private static QuantumState CloneState(QuantumState state)
+        {
+            if (state == null)
+                return null;
+
+            return new QuantumState(new ComplexVectorN(state.Amplitudes.Values));
+        }
+
+        private static string SampleReadout(CSharpNumerics.Numerics.Objects.VectorN probabilities, int qubitCount)
+        {
+            float sample = UnityEngine.Random.value;
+            float cumulative = 0f;
+            int outcome = 0;
+
+            for (int i = 0; i < probabilities.Length; i++)
+            {
+                cumulative += (float)probabilities[i];
+                if (sample <= cumulative)
+                {
+                    outcome = i;
+                    break;
+                }
+                outcome = i;
+            }
+
+            return System.Convert.ToString(outcome, 2).PadLeft(qubitCount, '0');
         }
     }
 }
