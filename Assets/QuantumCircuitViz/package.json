@@ -1,0 +1,22 @@
+{
+  "name": "com.csnumerics.quantum-circuit-viz",
+  "version": "1.0.0",
+  "displayName": "Quantum Circuit Visualizer",
+  "description": "Interactive quantum circuit builder with Bloch sphere visualization, measurement histograms, and RL-based error correction. Built on CSharpNumerics Quantum Engine.",
+  "unity": "2021.3",
+  "dependencies": {},
+  "optionalDependencies": {},
+  "keywords": [
+    "quantum",
+    "circuit",
+    "bloch-sphere",
+    "qubit",
+    "visualization",
+    "simulation",
+    "error-correction",
+    "reinforcement-learning"
+  ],
+  "author": {
+    "name": "Goran Backlund"
+  }
+}

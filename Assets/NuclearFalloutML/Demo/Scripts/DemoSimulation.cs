@@ -15,7 +15,7 @@ using CSharpNumerics.ML.Clustering.Results;
 using CSharpNumerics.ML.Scalers;
 using CSharpNumerics.ML.DimensionalityReduction.Algorithms;
 using CSharpNumerics.Numerics.Objects;
-using CSharpNumerics.Physics.Enums;
+using CSharpNumerics.Physics.Environmental.Enums;
 using CSharpNumerics.Physics.Materials;
 
 namespace NuclearFalloutML.Demo
