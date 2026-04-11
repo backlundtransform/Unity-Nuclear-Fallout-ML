@@ -183,4 +183,12 @@ namespace QuantumCircuitViz.Core
         public double ErrorRate { get; set; }
         public double Improvement => ProtectedFidelity - UnprotectedFidelity;
     }
+
+    public enum QECCodeType
+    {
+        BitFlip3,
+        PhaseFlip3,
+        Steane7,
+        Shor9
+    }
 }

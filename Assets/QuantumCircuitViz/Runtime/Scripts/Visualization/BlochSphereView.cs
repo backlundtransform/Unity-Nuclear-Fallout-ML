@@ -127,6 +127,7 @@ namespace QuantumCircuitViz.Visualization
             gameObject.SetActive(true);
             _overlayPanel.gameObject.SetActive(true);
             if (_sphere != null) _sphere.gameObject.SetActive(true);
+            PositionCameraForBloch();
             RefreshDisplay();
         }
 
@@ -135,6 +136,13 @@ namespace QuantumCircuitViz.Visualization
             gameObject.SetActive(false);
             _overlayPanel.gameObject.SetActive(false);
             if (_sphere != null) _sphere.gameObject.SetActive(false);
+            // Reset camera to default position for other views
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                cam.transform.position = new Vector3(0, 1.5f, -5f);
+                cam.transform.LookAt(new Vector3(0, 0.5f, 0));
+            }
         }
 
         public void SelectQubit(int q)
@@ -161,8 +169,8 @@ namespace QuantumCircuitViz.Visualization
                 var go = UIGo($"QBtn_{i}");
                 var rt = go.GetComponent<RectTransform>();
                 rt.SetParent(_overlayPanel, false);
-                rt.anchorMin = new Vector2(startX + i * btnW, 0.93f);
-                rt.anchorMax = new Vector2(startX + (i + 1) * btnW - 0.005f, 0.99f);
+                rt.anchorMin = new Vector2(startX + i * btnW, 0.88f);
+                rt.anchorMax = new Vector2(startX + (i + 1) * btnW - 0.005f, 0.94f);
                 rt.offsetMin = rt.offsetMax = Vector2.zero;
 
                 _qubitButtonBgs[i] = go.AddComponent<Image>();
@@ -201,18 +209,7 @@ namespace QuantumCircuitViz.Visualization
             _titleText.alignment = TextAnchor.MiddleLeft;
             _titleText.text = "Bloch Sphere — Local qubit state";
 
-            // Subtitle
-            var subGo = UIGo("BlochSubtitle");
-            var subRt = subGo.GetComponent<RectTransform>();
-            subRt.SetParent(_overlayPanel, false);
-            subRt.anchorMin = new Vector2(0.02f, 0.81f);
-            subRt.anchorMax = new Vector2(0.98f, 0.86f);
-            subRt.offsetMin = subRt.offsetMax = Vector2.zero;
-            var subTxt = subGo.AddComponent<Text>();
-            subTxt.font = Font.CreateDynamicFontFromOSFont("Consolas", 10);
-            subTxt.fontSize = 10;
-            subTxt.color = new Color(0.35f, 0.42f, 0.5f);
-            subTxt.text = "Best for understanding single-qubit gates (H, X, Y, Z, Rx, Ry, Rz), superposition, and rotations.";
+
         }
 
         private void BuildStateInfo()
@@ -220,11 +217,9 @@ namespace QuantumCircuitViz.Visualization
             var go = UIGo("StateInfo");
             var rt = go.GetComponent<RectTransform>();
             rt.SetParent(_overlayPanel, false);
-            rt.anchorMin = new Vector2(0.02f, 0.02f);
+            rt.anchorMin = new Vector2(0.02f, 0.05f);
             rt.anchorMax = new Vector2(0.50f, 0.18f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
-
-            go.AddComponent<Image>().color = new Color(0.04f, 0.04f, 0.10f, 0.85f);
 
             var txtGo = UIGo("StateInfoText");
             var txtRt = txtGo.GetComponent<RectTransform>();
@@ -337,6 +332,26 @@ namespace QuantumCircuitViz.Visualization
             float bzVal = (float)(rho00_r - rho11_r);
 
             return new Vector3(bxVal, bzVal, byVal);
+        }
+
+        private void PositionCameraForBloch()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            // Classic Bloch sphere viewing angle: 20° elevation, 30° azimuth
+            float dist = 5f;
+            float elevDeg = 20f;
+            float azimDeg = -30f;
+            float elev = elevDeg * Mathf.Deg2Rad;
+            float azim = azimDeg * Mathf.Deg2Rad;
+            Vector3 target = _sphere != null ? _sphere.transform.position : new Vector3(0, 0.5f, 0);
+            Vector3 offset = new Vector3(
+                Mathf.Sin(azim) * Mathf.Cos(elev),
+                Mathf.Sin(elev),
+                -Mathf.Cos(azim) * Mathf.Cos(elev)
+            ) * dist;
+            cam.transform.position = target + offset;
+            cam.transform.LookAt(target);
         }
 
         private void OnDestroy()

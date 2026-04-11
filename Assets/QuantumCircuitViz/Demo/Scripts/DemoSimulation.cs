@@ -487,7 +487,7 @@ namespace QuantumCircuitViz.Demo
                 cam = go.AddComponent<Camera>();
                 go.AddComponent<AudioListener>();
             }
-            cam.backgroundColor = new Color(0.04f, 0.04f, 0.1f);
+            cam.backgroundColor = new Color(0.082f, 0.051f, 0.216f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.transform.position = new Vector3(0, 1.5f, -5f);
             cam.transform.LookAt(new Vector3(0, 0.5f, 0));
