@@ -79,11 +79,11 @@ namespace QuantumCircuitViz.Visualization
             var panelRt = panelGo.GetComponent<RectTransform>();
             panelRt.SetParent(_container, false);
             panelRt.anchorMin = new Vector2(0.02f, 0.02f);
-            panelRt.anchorMax = new Vector2(0.48f, 0.93f);
+            panelRt.anchorMax = new Vector2(0.34f, 0.93f);
             panelRt.offsetMin = panelRt.offsetMax = Vector2.zero;
             panelGo.AddComponent<Image>().color = PanelBg;
 
-            _titleText = CreateText(panelRt, "Title", "State Vector", new Vector2(0.03f, 0.92f), new Vector2(0.45f, 0.98f), 14, Accent, TextAnchor.MiddleLeft).GetComponent<Text>();
+            _titleText = CreateText(panelRt, "Title", "State Vector", new Vector2(0.03f, 0.92f), new Vector2(0.72f, 0.98f), 14, Accent, TextAnchor.MiddleLeft).GetComponent<Text>();
             _summaryText = CreateText(panelRt, "Summary", "", new Vector2(0.03f, 0.84f), new Vector2(0.97f, 0.91f), 11, Secondary, TextAnchor.MiddleLeft).GetComponent<Text>();
 
             var scrollGo = UIGo("StateVectorScroll");

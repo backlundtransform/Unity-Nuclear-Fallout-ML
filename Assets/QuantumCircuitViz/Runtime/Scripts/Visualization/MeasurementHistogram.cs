@@ -37,8 +37,8 @@ namespace QuantumCircuitViz.Visualization
             if (_container == null)
                 _container = gameObject.AddComponent<RectTransform>();
             _container.SetParent(parent, false);
-            _container.anchorMin = new Vector2(0.50f, 0.02f);
-            _container.anchorMax = new Vector2(0.98f, 0.55f);
+            _container.anchorMin = new Vector2(0.36f, 0.02f);
+            _container.anchorMax = new Vector2(0.98f, 0.93f);
             _container.offsetMin = Vector2.zero;
             _container.offsetMax = Vector2.zero;
 
