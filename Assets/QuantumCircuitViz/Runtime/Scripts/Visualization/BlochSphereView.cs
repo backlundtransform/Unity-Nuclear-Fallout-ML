@@ -39,8 +39,8 @@ namespace QuantumCircuitViz.Visualization
         private float[] _purities;
 
         // ── Colors ───────────────────────────────────────────────
-        private static readonly Color ActiveBg   = new Color(0.00f, 0.45f, 0.65f, 0.95f);
-        private static readonly Color InactiveBg = new Color(0.10f, 0.10f, 0.18f, 0.90f);
+        private static readonly Color ActiveBg   = new Color(0.05f, 0.40f, 0.70f, 0.95f);
+        private static readonly Color InactiveBg = new Color(0.06f, 0.05f, 0.15f, 0.92f);
         private static readonly Color WarningCol = new Color(1f, 0.7f, 0.2f, 0.95f);
 
         public int SelectedQubit => _selectedQubit;

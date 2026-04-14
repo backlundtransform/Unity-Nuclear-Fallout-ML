@@ -23,8 +23,14 @@ namespace QuantumCircuitViz.Visualization
         private Coroutine _samplingCoroutine;
         private int[] _shotCounts;
 
-        private static readonly Color BarBaseColor = new Color(0f, 0.9f, 1f, 0.9f);
-        private static readonly Color BarHighColor = new Color(1f, 0.85f, 0.25f, 0.95f);
+        private static readonly Color BarBaseColor = new Color(0.40f, 0.90f, 0.55f, 0.92f);
+        private static readonly Color BarHighColor = new Color(0.55f, 1.0f, 0.65f, 0.95f);
+
+        /// <summary>Returns a nice light green for all bars.</summary>
+        private static Color GetRainbowBarColor(float t)
+        {
+            return Color.Lerp(BarBaseColor, BarHighColor, t);
+        }
 
         public void Initialise(RectTransform parent, int qubitCount)
         {
@@ -46,7 +52,7 @@ namespace QuantumCircuitViz.Visualization
             var bg = gameObject.GetComponent<Image>();
             if (bg == null)
                 bg = gameObject.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.05f, 0.12f, 0.85f);
+            bg.color = new Color(0.03f, 0.03f, 0.10f, 0.90f);
 
             // Title
             var titleGo = new GameObject("Title");
@@ -96,7 +102,13 @@ namespace QuantumCircuitViz.Visualization
                 barRt.offsetMin = Vector2.zero;
                 barRt.offsetMax = Vector2.zero;
                 _bars[i] = barGo.AddComponent<Image>();
-                _bars[i].color = BarBaseColor;
+                float barT = _stateCount > 1 ? (float)i / (_stateCount - 1) : 0f;
+                _bars[i].color = GetRainbowBarColor(barT);
+
+                // Glow effect on bars
+                var barGlow = barGo.AddComponent<Shadow>();
+                barGlow.effectColor = new Color(GetRainbowBarColor(barT).r, GetRainbowBarColor(barT).g, GetRainbowBarColor(barT).b, 0.5f);
+                barGlow.effectDistance = new Vector2(0, -2);
 
                 // Label
                 var lblGo = new GameObject($"Lbl_{i}");
@@ -153,7 +165,9 @@ namespace QuantumCircuitViz.Visualization
                 float x1 = rt.anchorMax.x;
                 rt.anchorMin = new Vector2(x0, 0.12f);
                 rt.anchorMax = new Vector2(x1, 0.12f + p * 0.74f);
-                _bars[i].color = Color.Lerp(BarBaseColor, BarHighColor, p);
+                float barT = _stateCount > 1 ? (float)i / (_stateCount - 1) : 0f;
+                Color baseCol = GetRainbowBarColor(barT);
+                _bars[i].color = Color.Lerp(baseCol * 0.5f, baseCol, Mathf.Max(p, 0.3f));
             }
         }
 
@@ -247,7 +261,9 @@ namespace QuantumCircuitViz.Visualization
                 float x1 = rt.anchorMax.x;
                 rt.anchorMin = new Vector2(x0, 0.12f);
                 rt.anchorMax = new Vector2(x1, 0.12f + p * 0.74f);
-                _bars[i].color = Color.Lerp(BarBaseColor, BarHighColor, p);
+                float barT = _stateCount > 1 ? (float)i / (_stateCount - 1) : 0f;
+                Color baseCol = GetRainbowBarColor(barT);
+                _bars[i].color = Color.Lerp(baseCol * 0.5f, baseCol, Mathf.Max(p, 0.3f));
             }
         }
     }

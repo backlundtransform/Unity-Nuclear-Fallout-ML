@@ -71,9 +71,9 @@ namespace QuantumCircuitViz.Visualization
         // ── Constants ────────────────────────────────────────────
         private const float CellWidth = 60f;
         private const float WireHeight = 36f;
-        private static readonly Color WireColor = new Color(0.45f, 0.50f, 0.55f, 0.8f);
-        private static readonly Color CursorColor = new Color(0.3f, 0.8f, 1f, 0.15f);
-        private static readonly Color GridBg = new Color(0.06f, 0.06f, 0.08f, 1f);
+        private static readonly Color WireColor = new Color(0.25f, 0.65f, 0.85f, 0.55f);
+        private static readonly Color CursorColor = new Color(0.2f, 0.85f, 1f, 0.18f);
+        private static readonly Color GridBg = new Color(0.04f, 0.03f, 0.10f, 1f);
 
         // ── Public properties ────────────────────────────────────
         public int CurrentStep => _currentStep;
@@ -190,7 +190,7 @@ namespace QuantumCircuitViz.Visualization
             _palettePanel.offsetMin = _palettePanel.offsetMax = Vector2.zero;
 
             var bg = go.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.05f, 0.12f, 0.95f);
+            bg.color = new Color(0.03f, 0.03f, 0.09f, 0.97f);
 
             // Title
             CreateText(_palettePanel, "PaletteTitle", "Gate Palette",
@@ -203,16 +203,16 @@ namespace QuantumCircuitViz.Visualization
             {
                 float w = 0.055f;
                 CreatePaletteButton(gate, new Vector2(x, 0.52f), new Vector2(x + w, 0.98f));
-                x += w + 0.005f;
+                x += w + 0.012f;
             }
 
             // Multi-qubit row
             x = 0.12f;
             foreach (var gate in GateLibrary.MultiQubitGates)
             {
-                float w = 0.07f;
+                float w = 0.055f;
                 CreatePaletteButton(gate, new Vector2(x, 0.02f), new Vector2(x + w, 0.48f));
-                x += w + 0.005f;
+                x += w + 0.012f;
             }
 
             // Cancel button (compact)
@@ -222,13 +222,13 @@ namespace QuantumCircuitViz.Visualization
 
         private Color GetQiskitColor(string sym)
         {
-            if (sym == "X" || sym == "Y" || sym == "Z") return new Color(0.12f, 0.73f, 0.72f); // Cyan
-            if (sym == "H") return new Color(0.45f, 0.65f, 0.90f); // Soft blue
-            if (sym == "CX" || sym == "CZ") return new Color(0.40f, 0.60f, 0.95f); // Bright blue
-            if (sym == "CCX") return new Color(0.75f, 0.50f, 0.95f); // Purple
-            if (sym == "SW" || sym == "CSW") return new Color(0.20f, 0.75f, 0.50f); // Green
-            if (sym == "S" || sym == "T" || sym == "S†" || sym == "T†") return new Color(0.85f, 0.55f, 0.65f); // Pinkish
-            if (sym.StartsWith("R")) return new Color(0.90f, 0.40f, 0.40f); // Red
+            if (sym == "X" || sym == "Y" || sym == "Z") return new Color(0.95f, 0.35f, 0.30f); // Vibrant red/coral
+            if (sym == "H") return new Color(1.0f, 0.82f, 0.15f); // Gold/yellow
+            if (sym == "CX" || sym == "CZ") return new Color(0.20f, 0.55f, 1.0f); // Vivid blue
+            if (sym == "CCX") return new Color(0.70f, 0.40f, 1.0f); // Vivid purple
+            if (sym == "SW" || sym == "CSW") return new Color(0.15f, 0.85f, 0.55f); // Vivid green
+            if (sym == "S" || sym == "T" || sym == "S†" || sym == "T†") return new Color(0.20f, 0.85f, 0.45f); // Green
+            if (sym.StartsWith("R")) return new Color(0.95f, 0.45f, 0.20f); // Orange
             return new Color(0.50f, 0.55f, 0.60f); // Gray
         }
 
@@ -239,18 +239,27 @@ namespace QuantumCircuitViz.Visualization
             rt.SetParent(_palettePanel, false);
             rt.anchorMin = anchorMin;
             rt.anchorMax = anchorMax;
-            rt.offsetMin = new Vector2(1, 1);
-            rt.offsetMax = new Vector2(-1, -1);
+            rt.offsetMin = new Vector2(2, 5);
+            rt.offsetMax = new Vector2(-2, -5);
 
-            Color qiskitColor = GetQiskitColor(gate.Symbol);
+            Color lightBlue = new Color(0.55f, 0.80f, 1.0f);
             var img = go.AddComponent<Image>();
-            img.color = qiskitColor * 0.6f; // Dim for unselected
+            img.color = GridBg; // Dark background matching grid
             _paletteBtnImages[gate] = img;
+
+            // Light blue border
+            var border = go.AddComponent<Outline>();
+            border.effectColor = lightBlue * 0.6f; // Dimmed when unselected
+            border.effectDistance = new Vector2(2, -2);
+
+            var border2 = go.AddComponent<Outline>();
+            border2.effectColor = lightBlue * 0.6f;
+            border2.effectDistance = new Vector2(-2, 2);
 
             var btn = go.AddComponent<Button>();
             btn.onClick.AddListener(() => OnPaletteClick(gate));
 
-            var txt = CreateChildText(rt, gate.Symbol, 11, Color.white, TextAnchor.MiddleCenter);
+            var txt = CreateChildText(rt, gate.Symbol, 11, lightBlue * 0.85f, TextAnchor.MiddleCenter);
             var textShadow = txt.gameObject.AddComponent<Shadow>();
             textShadow.effectColor = new Color(0, 0, 0, 0.5f);
             textShadow.effectDistance = new Vector2(1, -1);
@@ -288,7 +297,10 @@ namespace QuantumCircuitViz.Visualization
             // Highlight the selected palette button
             if (_paletteBtnImages.TryGetValue(gate, out var img))
             {
-                img.color = GetQiskitColor(gate.Symbol); // Full color for selected
+                // Brighten border on selection
+                var outlines = img.GetComponents<Outline>();
+                Color brightBlue = new Color(0.55f, 0.80f, 1.0f);
+                foreach (var o in outlines) o.effectColor = brightBlue;
             }
 
             SetStatus(BuildPlacementPrompt(gate, _pendingGateQubits));
@@ -298,7 +310,10 @@ namespace QuantumCircuitViz.Visualization
         {
             if (_selectedGate != null && _paletteBtnImages.TryGetValue(_selectedGate, out var img))
             {
-                img.color = GetQiskitColor(_selectedGate.Symbol) * 0.6f; // Back to dim
+                // Dim border back
+                var outlines = img.GetComponents<Outline>();
+                Color dimBlue = new Color(0.55f, 0.80f, 1.0f) * 0.6f;
+                foreach (var o in outlines) o.effectColor = dimBlue;
             }
             _selectedGate = null;
             _pendingGateQubits.Clear();
@@ -375,7 +390,7 @@ namespace QuantumCircuitViz.Visualization
             _classicalPanel.anchorMax = new Vector2(1f, 0.23f);
             _classicalPanel.offsetMin = _classicalPanel.offsetMax = Vector2.zero;
 
-            go.AddComponent<Image>().color = new Color(0.05f, 0.07f, 0.10f, 0.95f);
+            go.AddComponent<Image>().color = new Color(0.03f, 0.04f, 0.09f, 0.97f);
 
             _classicalHeaderText = CreateText(_classicalPanel, "ClassicalHeader", "creg c[2]  Measurement pending",
                 new Vector2(0.02f, 0.08f), new Vector2(0.22f, 0.92f), 12,
@@ -678,8 +693,8 @@ namespace QuantumCircuitViz.Visualization
                         var dotImg = dotGo.AddComponent<Image>();
                         dotImg.color = Color.clear; // Invisible square background background
 
-                        // Render a huge text dot in exactly the gate color
-                        CreateChildText(dotRt, "●", 28, new Color(gateColor.r, gateColor.g, gateColor.b, 1f), TextAnchor.MiddleCenter);
+                        // Render a huge text dot in light blue matching gate border
+                        CreateChildText(dotRt, "●", 28, new Color(0.55f, 0.80f, 1.0f, 1f), TextAnchor.MiddleCenter);
 
                         var trigger = dotGo.AddComponent<EventTrigger>();
                         AddHoverEvents(trigger, desc);
@@ -700,8 +715,8 @@ namespace QuantumCircuitViz.Visualization
                         
                         // If it's a target for CNOT or Toffoli, make it a circle (if we had radius) or thinner block.
                         // We will style normal blocks elegantly:
-                        float halfW = blockW * 0.35f; // Smaller width
-                        float halfH = rowH * 0.25f;   // Smaller height
+                        float halfW = blockW * 0.45f;
+                        float halfH = rowH * 0.30f;
                         
                         // For CNOT/Toffoli targets, Qiskit style draws a pure target loop matching the control color
                         bool isCnotTarget = (step.Gate is CNOTGate || step.Gate is ToffoliGate) && qi == step.QubitIndices.Count - 1;
@@ -721,44 +736,36 @@ namespace QuantumCircuitViz.Visualization
                             boxImg.color = Color.clear; // Totally transparent backing for the target text
                         else
                         {
-                            // Qiskit colors are exact, just darken a small bit for consistency if needed, but lets just use exactly the Qiskit palette we defined
-                            boxImg.color = gateColor;
-                        
-                            // 3D Bevel & Drop Shadow effect only for standard blocks
-                            var dropShadow = boxGo.AddComponent<Shadow>();
-                            dropShadow.effectColor = new Color(0, 0, 0, 0.6f);
-                            dropShadow.effectDistance = new Vector2(2, -3);
+                            boxImg.color = GridBg; // Match grid background
 
-                            var highlight = boxGo.AddComponent<Shadow>();
-                            highlight.effectColor = new Color(1, 1, 1, 0.4f);
-                            highlight.effectDistance = new Vector2(-1.5f, 1.5f);
+                            // Thick light blue border
+                            Color borderColor = new Color(0.55f, 0.80f, 1.0f);
+                            var border = boxGo.AddComponent<Outline>();
+                            border.effectColor = borderColor;
+                            border.effectDistance = new Vector2(3, -3);
 
-                            var innerShadow = boxGo.AddComponent<Shadow>();
-                            innerShadow.effectColor = new Color(0, 0, 0, 0.3f);
-                            innerShadow.effectDistance = new Vector2(1.5f, -1.5f);
+                            // Second pass for uniform thickness
+                            var border2 = boxGo.AddComponent<Outline>();
+                            border2.effectColor = borderColor;
+                            border2.effectDistance = new Vector2(-3, 3);
                         }
 
                         // Gate symbol text
                         string displaySym = sym;
-                        Color textColor = Color.white;
-                        int textSize = 22; // Much larger text
+                        Color textColor = new Color(0.55f, 0.80f, 1.0f); // Light blue
+                        int textSize = 28;
 
                         if (isCnotTarget)
                         {
-                            displaySym = "●"; // Massive blue/purple solid circle instead of a cross symbol
-                            textSize = 58; // Massive to form the visual element itself!
-                            textColor = gateColor; // Colored exactly like line/dots!
+                            displaySym = "●"; // Solid circle for target
+                            textSize = 58;
+                            textColor = new Color(0.55f, 0.80f, 1.0f); // Light blue matching border
                         }
 
                         // Add bold outline to text
                         var txt = CreateChildText(boxRt, displaySym, textSize, textColor, TextAnchor.MiddleCenter);
                         
-                        if (isCnotTarget)
-                        {
-                            // Add a crisp white cross directly over the colored circle
-                            CreateChildText(boxRt, "+", 32, Color.white, TextAnchor.MiddleCenter);
-                        }
-                        else
+                        if (!isCnotTarget)
                         {
                             var textShadow = txt.gameObject.AddComponent<Shadow>();
                             textShadow.effectColor = new Color(0, 0, 0, 0.5f);
@@ -844,7 +851,7 @@ namespace QuantumCircuitViz.Visualization
             rt.anchorMax = new Vector2(xCenter + halfCW, 1f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             _stepCursor.gameObject.SetActive(true);
-            _stepCursor.color = new Color(0.3f, 0.8f, 1f, 0.12f);
+            _stepCursor.color = new Color(0.15f, 0.70f, 1f, 0.15f);
         }
 
         public void RemoveGateAt(int index)
@@ -872,7 +879,7 @@ namespace QuantumCircuitViz.Visualization
             _controlPanel.anchorMin = new Vector2(0f, 0f);
             _controlPanel.anchorMax = new Vector2(1f, 0.14f);
             _controlPanel.offsetMin = _controlPanel.offsetMax = Vector2.zero;
-            go.AddComponent<Image>().color = new Color(0.05f, 0.05f, 0.12f, 0.95f);
+            go.AddComponent<Image>().color = new Color(0.03f, 0.03f, 0.09f, 0.97f);
 
             // Status text (placement instructions)
             _statusText = CreateText(_controlPanel, "Status", "",
@@ -886,28 +893,28 @@ namespace QuantumCircuitViz.Visualization
             float bh = 0.50f;
 
             _btnStepBack = CreateControlButton("◀", new Vector2(bx, by), new Vector2(bx + bw, bh),
-                new Color(0.15f, 0.25f, 0.35f), () => OnStepChanged?.Invoke(-1));
+                new Color(0.10f, 0.30f, 0.55f), () => OnStepChanged?.Invoke(-1));
             bx += bw + 0.01f;
 
             _btnPlayPause = CreateControlButton("►", new Vector2(bx, by), new Vector2(bx + bw, bh),
-                new Color(0.1f, 0.4f, 0.25f), () => OnPlayToggle?.Invoke());
+                new Color(0.08f, 0.50f, 0.30f), () => OnPlayToggle?.Invoke());
             _playPauseText = _btnPlayPause.GetComponentInChildren<Text>();
             bx += bw + 0.01f;
 
             _btnStepFwd = CreateControlButton("▶", new Vector2(bx, by), new Vector2(bx + bw, bh),
-                new Color(0.15f, 0.25f, 0.35f), () => OnStepChanged?.Invoke(1));
+                new Color(0.10f, 0.30f, 0.55f), () => OnStepChanged?.Invoke(1));
             bx += bw + 0.01f;
 
             _btnReset = CreateControlButton("⟲", new Vector2(bx, by), new Vector2(bx + bw, bh),
-                new Color(0.35f, 0.2f, 0.15f), () => OnReset?.Invoke());
+                new Color(0.55f, 0.20f, 0.12f), () => OnReset?.Invoke());
             bx += bw + 0.015f;
 
             _btnUndo = CreateControlButton("Undo", new Vector2(bx, by), new Vector2(bx + bw * 1.15f, bh),
-                new Color(0.3f, 0.2f, 0.4f), UndoLastGate);
+                new Color(0.35f, 0.18f, 0.55f), UndoLastGate);
             bx += bw * 1.15f + 0.01f;
 
             _btnClear = CreateControlButton("Clear", new Vector2(bx, by), new Vector2(bx + bw * 1.2f, bh),
-                new Color(0.4f, 0.15f, 0.15f), ClearCircuit);
+                new Color(0.55f, 0.12f, 0.12f), ClearCircuit);
             bx += bw * 1.2f + 0.015f;
 
             // Step counter
@@ -950,6 +957,12 @@ namespace QuantumCircuitViz.Visualization
             go.AddComponent<Image>().color = bgColor;
             var btn = go.AddComponent<Button>();
             btn.onClick.AddListener(action);
+
+            // Neon glow on control buttons
+            var glow = go.AddComponent<Shadow>();
+            glow.effectColor = new Color(bgColor.r * 1.5f, bgColor.g * 1.5f, bgColor.b * 1.5f, 0.4f);
+            glow.effectDistance = new Vector2(0, -2);
+
             CreateChildText(rt, label, 14, Color.white, TextAnchor.MiddleCenter);
             return btn;
         }

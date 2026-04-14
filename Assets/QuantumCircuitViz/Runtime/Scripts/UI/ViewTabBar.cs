@@ -17,10 +17,10 @@ namespace QuantumCircuitViz.UI
         private Text[] _tabTexts;
         private int _selectedIndex;
 
-        private static readonly Color ActiveBg   = new Color(0.00f, 0.45f, 0.65f, 0.95f);
-        private static readonly Color InactiveBg = new Color(0.08f, 0.08f, 0.14f, 0.90f);
+        private static readonly Color ActiveBg   = new Color(0.05f, 0.40f, 0.70f, 0.95f);
+        private static readonly Color InactiveBg = new Color(0.05f, 0.04f, 0.12f, 0.92f);
         private static readonly Color ActiveText  = Color.white;
-        private static readonly Color InactiveText = new Color(0.45f, 0.55f, 0.65f);
+        private static readonly Color InactiveText = new Color(0.35f, 0.50f, 0.70f);
 
         public int SelectedIndex => _selectedIndex;
 
@@ -35,7 +35,7 @@ namespace QuantumCircuitViz.UI
             rt.offsetMin = rt.offsetMax = Vector2.zero;
 
             var bg = gameObject.AddComponent<Image>();
-            bg.color = new Color(0.03f, 0.03f, 0.06f, 0.98f);
+            bg.color = new Color(0.02f, 0.015f, 0.06f, 0.98f);
 
             int count = tabNames.Length;
             _tabs = new Button[count];
@@ -55,6 +55,11 @@ namespace QuantumCircuitViz.UI
 
                 _tabBgs[i] = go.AddComponent<Image>();
                 _tabs[i] = go.AddComponent<Button>();
+
+                // Neon underline glow
+                var glow = go.AddComponent<Shadow>();
+                glow.effectColor = new Color(0.1f, 0.5f, 0.9f, 0.35f);
+                glow.effectDistance = new Vector2(0, -2);
 
                 var txtGo = UIGo("Label");
                 var txtRt = txtGo.GetComponent<RectTransform>();

@@ -487,7 +487,7 @@ namespace QuantumCircuitViz.Demo
                 cam = go.AddComponent<Camera>();
                 go.AddComponent<AudioListener>();
             }
-            cam.backgroundColor = new Color(0.082f, 0.051f, 0.216f);
+            cam.backgroundColor = new Color(0.055f, 0.025f, 0.18f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.transform.position = new Vector3(0, 1.5f, -5f);
             cam.transform.LookAt(new Vector3(0, 0.5f, 0));
@@ -543,7 +543,7 @@ namespace QuantumCircuitViz.Demo
             statusRt.anchorMin = new Vector2(0f, 0f);
             statusRt.anchorMax = new Vector2(1f, 0.038f);
             statusRt.offsetMin = statusRt.offsetMax = Vector2.zero;
-            statusGo.AddComponent<Image>().color = new Color(0.03f, 0.03f, 0.06f, 0.95f);
+            statusGo.AddComponent<Image>().color = new Color(0.02f, 0.015f, 0.06f, 0.97f);
 
             var sbTextGo = new GameObject("StatusText");
             var sbTextRt = sbTextGo.AddComponent<RectTransform>();

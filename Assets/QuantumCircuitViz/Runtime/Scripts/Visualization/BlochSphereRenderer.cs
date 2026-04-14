@@ -14,7 +14,7 @@ namespace QuantumCircuitViz.Visualization
     public class BlochSphereRenderer : MonoBehaviour
     {
         private float _radius = 1.5f;
-        private int _segments = 36;
+        private int _segments = 256;
 
         // Child objects
         private GameObject _sphereObj;
@@ -42,12 +42,12 @@ namespace QuantumCircuitViz.Visualization
         private float _lerpSpeed = 4f;
 
         // Colors (Qiskit inspired)
-        private static readonly Color SphereColor = new Color(0.75f, 0.82f, 0.95f, 0.18f);
-        private static readonly Color WireColor = new Color(0.55f, 0.55f, 0.6f, 0.25f);
-        private static readonly Color ArrowColor = new Color(0.85f, 0.15f, 0.55f, 1f); // magenta
-        private static readonly Color ProjLineColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
-        private static readonly Color ThetaArcColor = new Color(0.2f, 0.75f, 0.2f, 0.85f);
-        private static readonly Color PhiArcColor = new Color(0.75f, 0.2f, 0.75f, 0.85f);
+        private static readonly Color SphereColor = new Color(0.40f, 0.55f, 0.90f, 0.10f);
+        private static readonly Color WireColor = new Color(0.15f, 0.65f, 0.95f, 0.40f);
+        private static readonly Color ArrowColor = new Color(0.95f, 0.20f, 0.60f, 1f); // bright magenta
+        private static readonly Color ProjLineColor = new Color(0.40f, 0.70f, 0.90f, 0.45f);
+        private static readonly Color ThetaArcColor = new Color(0.25f, 0.90f, 0.30f, 0.90f);
+        private static readonly Color PhiArcColor = new Color(0.90f, 0.25f, 0.90f, 0.90f);
 
         public void Initialise(float radius, int segments, float animSpeed)
         {
@@ -94,8 +94,8 @@ namespace QuantumCircuitViz.Visualization
             sphereMat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             sphereMat.renderQueue = 3000;
             sphereMat.color = SphereColor;
-            sphereMat.SetFloat("_Glossiness", 0.85f);
-            sphereMat.SetFloat("_Metallic", 0.05f);
+            sphereMat.SetFloat("_Glossiness", 0.92f);
+            sphereMat.SetFloat("_Metallic", 0.02f);
             _sphereObj.GetComponent<Renderer>().material = sphereMat;
             var col = _sphereObj.GetComponent<Collider>();
             if (col != null) Destroy(col);
@@ -111,34 +111,35 @@ namespace QuantumCircuitViz.Visualization
         private void BuildWireframe()
         {
             var lines = new System.Collections.Generic.List<LineRenderer>();
-            int pts = _segments + 1;
+            int segs = Mathf.Max(_segments, 256); // Force minimum 256 for smooth circles
+            int pts = segs + 1;
 
-            // 1. Equator (XZ Plane)
-            var eq = CreateLine("Wire_Equator", WireColor, 0.007f * _radius);
+            // 1. Equator (XZ Plane) — bright neon cyan
+            var eq = CreateLine("Wire_Equator", new Color(0.1f, 0.75f, 1f, 0.55f), 0.010f * _radius);
             eq.positionCount = pts;
-            for (int i = 0; i <= _segments; i++)
+            for (int i = 0; i <= segs; i++)
             {
-                float ang = 2f * Mathf.PI * i / _segments;
+                float ang = 2f * Mathf.PI * i / segs;
                 eq.SetPosition(i, new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * _radius);
             }
             lines.Add(eq);
 
             // 2. Meridian (XY Plane)
-            var m1 = CreateLine("Wire_Meridian1", WireColor, 0.004f * _radius);
+            var m1 = CreateLine("Wire_Meridian1", new Color(0.1f, 0.65f, 0.95f, 0.35f), 0.006f * _radius);
             m1.positionCount = pts;
-            for (int i = 0; i <= _segments; i++)
+            for (int i = 0; i <= segs; i++)
             {
-                float ang = 2f * Mathf.PI * i / _segments;
+                float ang = 2f * Mathf.PI * i / segs;
                 m1.SetPosition(i, new Vector3(Mathf.Cos(ang), Mathf.Sin(ang), 0f) * _radius);
             }
             lines.Add(m1);
 
             // 3. Meridian (YZ Plane)
-            var m2 = CreateLine("Wire_Meridian2", WireColor, 0.004f * _radius);
+            var m2 = CreateLine("Wire_Meridian2", new Color(0.1f, 0.65f, 0.95f, 0.35f), 0.006f * _radius);
             m2.positionCount = pts;
-            for (int i = 0; i <= _segments; i++)
+            for (int i = 0; i <= segs; i++)
             {
-                float ang = 2f * Mathf.PI * i / _segments;
+                float ang = 2f * Mathf.PI * i / segs;
                 m2.SetPosition(i, new Vector3(0f, Mathf.Sin(ang), Mathf.Cos(ang)) * _radius);
             }
             lines.Add(m2);
@@ -147,9 +148,9 @@ namespace QuantumCircuitViz.Visualization
         }
 
         // Axis colors matching standard Bloch sphere diagrams
-        private static readonly Color AxisXColor = new Color(0.35f, 0.65f, 0.35f, 0.9f);  // muted green
-        private static readonly Color AxisYColor = new Color(0.35f, 0.45f, 0.7f, 0.9f);   // muted blue
-        private static readonly Color AxisZColor = new Color(0.7f, 0.3f, 0.3f, 0.9f);    // muted red
+        private static readonly Color AxisXColor = new Color(0.30f, 0.85f, 0.35f, 0.95f);  // bright green
+        private static readonly Color AxisYColor = new Color(0.30f, 0.50f, 0.95f, 0.95f);   // bright blue
+        private static readonly Color AxisZColor = new Color(0.95f, 0.30f, 0.30f, 0.95f);    // bright red
 
         private void BuildAxes()
         {
@@ -224,7 +225,7 @@ namespace QuantumCircuitViz.Visualization
             _stateGizmo.transform.localScale = Vector3.one * _radius * 0.1f;
             var gizmoMat = new Material(Shader.Find("Standard"));
             gizmoMat.EnableKeyword("_EMISSION");
-            gizmoMat.SetColor("_EmissionColor", ArrowColor * 1.5f);
+            gizmoMat.SetColor("_EmissionColor", ArrowColor * 2.0f);
             gizmoMat.color = ArrowColor;
             _stateGizmo.GetComponent<Renderer>().material = gizmoMat;
             var col = _stateGizmo.GetComponent<Collider>();
@@ -376,6 +377,8 @@ namespace QuantumCircuitViz.Visualization
             go.transform.SetParent(transform, false);
             var lr = go.AddComponent<LineRenderer>();
             lr.useWorldSpace = false;
+            lr.numCornerVertices = 8;
+            lr.numCapVertices = 4;
             lr.startWidth = width;
             lr.endWidth = width;
             var mat = new Material(Shader.Find("Sprites/Default"));

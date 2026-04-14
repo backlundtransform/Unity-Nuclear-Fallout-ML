@@ -21,9 +21,9 @@ namespace QuantumCircuitViz.Visualization
         private int _qubitCount;
         private int _stateCount;
 
-        private static readonly Color PanelBg = new Color(0.04f, 0.04f, 0.10f, 0.92f);
-        private static readonly Color Accent = new Color(0.6f, 0.8f, 1f);
-        private static readonly Color Secondary = new Color(0.45f, 0.58f, 0.72f);
+        private static readonly Color PanelBg = new Color(0.03f, 0.02f, 0.08f, 0.94f);
+        private static readonly Color Accent = new Color(0.4f, 0.75f, 1f);
+        private static readonly Color Secondary = new Color(0.35f, 0.55f, 0.80f);
         private static readonly Color Body = new Color(0.86f, 0.91f, 0.98f);
 
         public void Initialise(RectTransform parent, int qubitCount)

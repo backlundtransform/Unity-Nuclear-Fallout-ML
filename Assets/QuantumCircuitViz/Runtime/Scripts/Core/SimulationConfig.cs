@@ -24,8 +24,8 @@ namespace QuantumCircuitViz.Core
         public float animationSpeed = 0.8f;
 
         [Tooltip("Number of latitude/longitude lines on sphere wireframe")]
-        [Range(8, 32)]
-        public int wireframeSegments = 16;
+        [Range(8, 512)]
+        public int wireframeSegments = 256;
 
         [Header("Noise")]
         [Tooltip("Enable quantum noise simulation")]
