@@ -643,6 +643,8 @@ namespace QuantumCircuitViz.Visualization
                 float xCenter = gridStart + (s + 0.5f) * stepW;
                 var info = GateLibrary.Find(step.Gate);
                 string sym = info != null ? info.Symbol : step.Gate.GetType().Name.Replace("Gate", "");
+                // Abbreviate long gate names to fit in block
+                if (sym.Length > 4) sym = sym.Substring(0, 2) + "…";
                 Color gateColor = GetQiskitColor(sym);
                 string desc = info != null ? $"{info.DisplayName}\n{info.Description}" : sym;
 
@@ -790,35 +792,63 @@ namespace QuantumCircuitViz.Visualization
             for (int q = 0; q < _qubitCount; q++)
             {
                 float yMid = 1f - (q + 0.5f) * rowH;
-                float xEnd = gridEnd + 0.015f;
+                float xEnd = gridEnd + 0.012f;
                 var mGo = UIGo($"Meas_q{q}");
                 var mRt = mGo.GetComponent<RectTransform>();
                 mRt.SetParent(_gridPanel, false);
-                float mW = 0.025f;
-                float mH = rowH * 0.18f;
+                float mW = 0.032f;
+                float mH = rowH * 0.28f;
                 mRt.anchorMin = new Vector2(xEnd, yMid - mH);
                 mRt.anchorMax = new Vector2(xEnd + mW, yMid + mH);
                 mRt.offsetMin = mRt.offsetMax = Vector2.zero;
 
-                // Rounded-look dark box with subtle border feel
+                // Dark box matching grid bg
                 var mImg = mGo.AddComponent<Image>();
-                mImg.color = new Color(0.12f, 0.12f, 0.20f, 1f);
+                mImg.color = GridBg;
 
-                // Outer glow shadow
-                var dropShadow = mGo.AddComponent<Shadow>();
-                dropShadow.effectColor = new Color(0.3f, 0.5f, 0.9f, 0.25f);
-                dropShadow.effectDistance = new Vector2(0, -2);
+                // Light blue border matching gates
+                Color borderColor = new Color(0.55f, 0.80f, 1.0f);
+                var border = mGo.AddComponent<Outline>();
+                border.effectColor = borderColor;
+                border.effectDistance = new Vector2(2, -2);
+                var border2 = mGo.AddComponent<Outline>();
+                border2.effectColor = borderColor;
+                border2.effectDistance = new Vector2(-2, 2);
 
-                // Meter icon: ⌐ arc + arrow, using two lines of text
-                // Top: arc symbol ◠  Bottom: ↗ arrow
-                var arcTxt = CreateChildText(mRt, "◠", 16, new Color(0.7f, 0.8f, 1f, 0.9f), TextAnchor.UpperCenter);
-                var arrowTxt = CreateChildText(mRt, "↗", 11, new Color(0.9f, 0.5f, 0.55f, 1f), TextAnchor.LowerCenter);
+                // Meter icon: arc on top half, arrow on bottom half
+                // Top area for the arc
+                var arcGo = UIGo("Arc");
+                var arcRt = arcGo.GetComponent<RectTransform>();
+                arcRt.SetParent(mRt, false);
+                arcRt.anchorMin = new Vector2(0f, 0.30f);
+                arcRt.anchorMax = new Vector2(1f, 0.80f);
+                arcRt.offsetMin = arcRt.offsetMax = Vector2.zero;
+                var arcTxt = arcGo.AddComponent<Text>();
+                arcTxt.text = "◠";
+                arcTxt.font = Font.CreateDynamicFontFromOSFont("Consolas", 22);
+                arcTxt.fontSize = 52;
+                arcTxt.color = new Color(0.55f, 0.80f, 1.0f, 0.9f);
+                arcTxt.alignment = TextAnchor.LowerCenter;
+
+                // Arrow pointing up-right from center of arc
+                var arrowGo = UIGo("Arrow");
+                var arrowRt = arrowGo.GetComponent<RectTransform>();
+                arrowRt.SetParent(mRt, false);
+                arrowRt.anchorMin = new Vector2(0.15f, 0.15f);
+                arrowRt.anchorMax = new Vector2(0.85f, 0.75f);
+                arrowRt.offsetMin = arrowRt.offsetMax = Vector2.zero;
+                var arrowTxt = arrowGo.AddComponent<Text>();
+                arrowTxt.text = "↗";
+                arrowTxt.font = Font.CreateDynamicFontFromOSFont("Consolas", 16);
+                arrowTxt.fontSize = 14;
+                arrowTxt.color = new Color(0.95f, 0.55f, 0.40f, 1f);
+                arrowTxt.alignment = TextAnchor.MiddleCenter;
 
                 int qubitIndex = q;
                 var btn = mGo.AddComponent<Button>();
                 var btnColors = btn.colors;
-                btnColors.highlightedColor = new Color(0.2f, 0.25f, 0.4f, 1f);
-                btnColors.pressedColor = new Color(0.3f, 0.5f, 0.9f, 1f);
+                btnColors.highlightedColor = new Color(0.12f, 0.18f, 0.35f, 1f);
+                btnColors.pressedColor = new Color(0.2f, 0.40f, 0.70f, 1f);
                 btn.colors = btnColors;
                 btn.onClick.AddListener(() => OnMeasureRequested?.Invoke(qubitIndex));
 

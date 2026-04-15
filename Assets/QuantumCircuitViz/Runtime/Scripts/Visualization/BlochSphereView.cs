@@ -161,16 +161,17 @@ namespace QuantumCircuitViz.Visualization
             _qubitButtons = new Button[_qubitCount];
             _qubitButtonBgs = new Image[_qubitCount];
 
-            float btnW = Mathf.Min(0.08f, 0.6f / _qubitCount);
-            float startX = 0.5f - (_qubitCount * btnW) / 2f;
+            float btnH = Mathf.Min(0.06f, 0.5f / _qubitCount);
+            float totalH = _qubitCount * btnH;
+            float startY = 0.5f + totalH / 2f; // center vertically
 
             for (int i = 0; i < _qubitCount; i++)
             {
                 var go = UIGo($"QBtn_{i}");
                 var rt = go.GetComponent<RectTransform>();
                 rt.SetParent(_overlayPanel, false);
-                rt.anchorMin = new Vector2(startX + i * btnW, 0.88f);
-                rt.anchorMax = new Vector2(startX + (i + 1) * btnW - 0.005f, 0.94f);
+                rt.anchorMin = new Vector2(0.92f, startY - (i + 1) * btnH + 0.005f);
+                rt.anchorMax = new Vector2(0.98f, startY - i * btnH - 0.005f);
                 rt.offsetMin = rt.offsetMax = Vector2.zero;
 
                 _qubitButtonBgs[i] = go.AddComponent<Image>();

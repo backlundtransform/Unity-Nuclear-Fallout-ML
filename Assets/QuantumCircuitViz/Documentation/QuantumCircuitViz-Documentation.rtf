@@ -1,0 +1,269 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss\fcharset0 Arial;}{\f1\fmodern\fcharset0 Consolas;}}
+{\colortbl;\red0\green0\blue0;\red0\green102\blue204;\red80\green80\blue80;\red200\green50\blue50;}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+
+\pard\sa200\qc\b\f0\fs40 Quantum Circuit Visualizer\b0\par
+\pard\sa100\qc\f0\fs24\cf2 Documentation v1.0.0\cf0\par
+\pard\sa100\qc\fs20\cf3 by Goran Backlund | Built on CSharpNumerics Quantum Engine\cf0\par
+\pard\sa200\par
+
+\pard\sa200\b\fs28 Table of Contents\b0\fs20\par
+\pard\li360\sa60 1. Overview\par
+\pard\li360\sa60 2. Requirements\par
+\pard\li360\sa60 3. Installation\par
+\pard\li360\sa60 4. Quick Start Setup Guide\par
+\pard\li720\sa60 4.1. Zero-Setup Demo\par
+\pard\li720\sa60 4.2. Configuration Options\par
+\pard\li360\sa60 5. User Interface Guide\par
+\pard\li720\sa60 5.1. Circuit View\par
+\pard\li720\sa60 5.2. State View\par
+\pard\li720\sa60 5.3. Bloch Sphere View\par
+\pard\li360\sa60 6. Keyboard Controls\par
+\pard\li360\sa60 7. Gate Reference\par
+\pard\li720\sa60 7.1. Single-Qubit Gates\par
+\pard\li720\sa60 7.2. Multi-Qubit Gates\par
+\pard\li360\sa60 8. Preset Circuits\par
+\pard\li360\sa60 9. Noise Simulation\par
+\pard\li360\sa60 10. Export Features\par
+\pard\li360\sa60 11. Script Reference\par
+\pard\li720\sa60 11.1. DemoSimulation\par
+\pard\li720\sa60 11.2. SimulationConfig\par
+\pard\li720\sa60 11.3. CircuitRunner\par
+\pard\li720\sa60 11.4. GateLibrary\par
+\pard\li720\sa60 11.5. CircuitGridView\par
+\pard\li720\sa60 11.6. StateView\par
+\pard\li720\sa60 11.7. BlochSphereView\par
+\pard\li720\sa60 11.8. MeasurementHistogram\par
+\pard\li720\sa60 11.9. CircuitExporter\par
+\pard\li720\sa60 11.10. ScreenshotUtility\par
+\pard\li360\sa60 12. Assembly Definitions\par
+\pard\li360\sa60 13. Troubleshooting\par
+\pard\li360\sa60 14. Support\par
+\pard\sa400\par
+
+\pard\keepn\sa200\b\fs28 1. Overview\b0\fs20\par
+\pard\sa100 Quantum Circuit Visualizer is an interactive quantum computing educational tool for Unity. It provides a complete circuit builder, state vector visualization, measurement histograms, and a 3D Bloch sphere \emdash  all running in real time within the Unity Editor or standalone builds.\par
+\pard\sa100 Key features:\par
+\pard\li360\sa60\bullet  Interactive drag-and-drop gate placement on qubit wires\par
+\pard\li360\sa60\bullet  Step-by-step circuit execution with play, pause, and reset\par
+\pard\li360\sa60\bullet  Real-time state vector display with amplitudes and probabilities\par
+\pard\li360\sa60\bullet  Animated measurement sampling histogram\par
+\pard\li360\sa60\bullet  3D Bloch sphere with animated state vector, projection lines, and angle arcs\par
+\pard\li360\sa60\bullet  Entanglement detection and purity display\par
+\pard\li360\sa60\bullet  Quantum noise simulation (depolarizing, dephasing, amplitude damping)\par
+\pard\li360\sa60\bullet  QASM export to clipboard\par
+\pard\li360\sa60\bullet  Screenshot capture\par
+\pard\li360\sa60\bullet  7 built-in preset circuits (Bell State, GHZ, Grover, QFT, and more)\par
+\pard\li360\sa60\bullet  Support for 1 to 5 qubits\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 2. Requirements\b0\fs20\par
+\pard\li360\sa60\bullet  Unity 2021.3 LTS or later\par
+\pard\li360\sa60\bullet  CSharpNumerics.dll (included in Assets/Plugins/CSharpNumerics/)\par
+\pard\li360\sa60\bullet  .NET Standard 2.1 compatible scripting backend\par
+\pard\li360\sa60\bullet  No additional dependencies required\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 3. Installation\b0\fs20\par
+\pard\sa100\b Step 1:\b0  Import the Quantum Circuit Visualizer package into your Unity project via the Asset Store or by copying the QuantumCircuitViz folder into your Assets directory.\par
+\pard\sa100\b Step 2:\b0  Verify that the CSharpNumerics.dll plugin is present at Assets/Plugins/CSharpNumerics/CSharpNumerics.dll. This DLL is included with the package.\par
+\pard\sa100\b Step 3:\b0  Open any scene in your project. No scene setup is required.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 4. Quick Start Setup Guide\b0\fs20\par
+\pard\keepn\sa150\b\fs24 4.1. Zero-Setup Demo\b0\fs20\par
+\pard\sa100 The fastest way to get started requires no scene configuration at all:\par
+\pard\sa100\b Step 1:\b0  Open any scene in the Unity Editor (even an empty scene).\par
+\pard\sa100\b Step 2:\b0  Create an empty GameObject: right-click in the Hierarchy window and select Create Empty.\par
+\pard\sa100\b Step 3:\b0  With the new GameObject selected, click Add Component in the Inspector.\par
+\pard\sa100\b Step 4:\b0  Search for and add the "DemoSimulation" component (found under QuantumCircuitViz.Demo namespace).\par
+\pard\sa100\b Step 5:\b0  Press Play. The demo automatically creates its own camera, canvas, event system, and all UI elements. A Bell State circuit (H followed by CNOT) is loaded by default.\par
+\pard\sa100\b Step 6:\b0  Use the keyboard controls (see Section 6) or the on-screen buttons to interact with the circuit.\par
+\pard\sa200 That is all \emdash  no materials, prefabs, or additional setup needed.\par
+
+\pard\keepn\sa150\b\fs24 4.2. Configuration Options\b0\fs20\par
+\pard\sa100 After adding DemoSimulation, you can configure settings in the Inspector:\par
+\pard\li360\sa60\bullet  \b Qubit Count\b0  (1\endash 5): Number of qubits for new circuits.\par
+\pard\li360\sa60\bullet  \b Sphere Radius\b0  (0.5\endash 3.0): Size of the 3D Bloch sphere.\par
+\pard\li360\sa60\bullet  \b Animation Speed\b0  (0.1\endash 3.0): Seconds between auto-step advances.\par
+\pard\li360\sa60\bullet  \b Wireframe Segments\b0  (8\endash 512): Smoothness of sphere wireframe rings.\par
+\pard\li360\sa60\bullet  \b Enable Noise\b0 : Toggle quantum noise simulation.\par
+\pard\li360\sa60\bullet  \b Depolarizing Rate\b0  (0\endash 0.5): Probability of depolarizing error per gate.\par
+\pard\li360\sa60\bullet  \b Dephasing Rate\b0  (0\endash 0.5): Probability of dephasing error per gate.\par
+\pard\li360\sa60\bullet  \b Amplitude Damping Gamma\b0  (0\endash 0.5): Amplitude damping parameter per gate.\par
+\pard\li360\sa60\bullet  \b Auto Play\b0 : Automatically step through gates when entering Play Mode.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 5. User Interface Guide\b0\fs20\par
+\pard\sa100 The application has three views, accessible via the tab bar at the top of the screen or by pressing Tab.\par
+
+\pard\keepn\sa150\b\fs24 5.1. Circuit View\b0\fs20\par
+\pard\sa100 The main circuit editor with four sections:\par
+\pard\li360\sa60\bullet  \b Gate Palette\b0  (top): Click a gate button to select it, then click a qubit wire to place it. Multi-qubit gates require clicking multiple wires in sequence (control qubit first, then target).\par
+\pard\li360\sa60\bullet  \b Circuit Grid\b0  (center): Displays qubit wires with placed gate blocks. Click any gate to remove it. A blue cursor highlights the current execution step.\par
+\pard\li360\sa60\bullet  \b Classical Register\b0  (below grid): Shows measurement results for each qubit. Displays a dot (.) for unmeasured qubits and 0 or 1 after measurement.\par
+\pard\li360\sa60\bullet  \b Transport Controls\b0  (bottom): Step back, play/pause, step forward, reset, undo, and clear buttons. Also includes qubit count selector (+/\endash ) and a New button to start a blank circuit.\par
+\pard\li360\sa60\bullet  \b Measurement Icons\b0  (right edge): Click the meter icon next to any qubit wire to measure that individual qubit.\par
+
+\pard\keepn\sa150\b\fs24 5.2. State View\b0\fs20\par
+\pard\sa100 Displays the quantum state in two panels:\par
+\pard\li360\sa60\bullet  \b State Vector Panel\b0  (left): Shows the full state vector in Dirac notation with amplitude values and probabilities for each basis state.\par
+\pard\li360\sa60\bullet  \b Measurement Histogram\b0  (right): Bar chart showing the probability of measuring each computational basis state. After measurement, bars animate shot-by-shot to show statistical sampling.\par
+
+\pard\keepn\sa150\b\fs24 5.3. Bloch Sphere View\b0\fs20\par
+\pard\sa100 A 3D interactive Bloch sphere showing the local state of one qubit at a time:\par
+\pard\li360\sa60\bullet  \b Qubit Selector\b0  (right side): Buttons to switch between qubits.\par
+\pard\li360\sa60\bullet  \b Bloch Sphere\b0  (center): 3D sphere with equator and meridian rings, XYZ axes, and labeled basis states (|0\rquote , |1\rquote , |+\rquote , |\endash \rquote , |+i\rquote , |\endash i\rquote ).\par
+\pard\li360\sa60\bullet  \b State Vector Arrow\b0 : Magenta arrow showing the current qubit state, with projection lines to the equatorial plane.\par
+\pard\li360\sa60\bullet  \b Angle Arcs\b0 : Green arc for polar angle theta, magenta arc for azimuthal angle phi.\par
+\pard\li360\sa60\bullet  \b State Info\b0  (bottom left): Displays theta, phi (radians and degrees), Bloch vector magnitude, and purity.\par
+\pard\li360\sa60\bullet  \b Entanglement Warning\b0 : Yellow warning appears when the selected qubit is entangled (purity < 0.98), indicating the Bloch sphere is not fully representative.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 6. Keyboard Controls\b0\fs20\par
+\pard\sa100 The following keyboard shortcuts are available during Play Mode:\par
+\pard\li360\sa60\bullet  \b Tab\b0  / \b Shift+Tab\b0 : Cycle between views (Circuit, State, Bloch)\par
+\pard\li360\sa60\bullet  \b Left Arrow\b0  / \b Right Arrow\b0 : Step backward / forward through gates\par
+\pard\li360\sa60\bullet  \b Space\b0 : Toggle play / pause auto-advance\par
+\pard\li360\sa60\bullet  \b R\b0 : Reset circuit to initial |0...0\rquote  state\par
+\pard\li360\sa60\bullet  \b M\b0 : Measure the current quantum state\par
+\pard\li360\sa60\bullet  \b U\b0  / \b Backspace\b0 : Undo last placed gate\par
+\pard\li360\sa60\bullet  \b N\b0 : Toggle noise simulation on/off\par
+\pard\li360\sa60\bullet  \b C\b0 : Create new blank circuit\par
+\pard\li360\sa60\bullet  \b +\b0  / \b \endash \b0 : Increase / decrease qubit count\par
+\pard\li360\sa60\bullet  \b F5\b0 : Export circuit as QASM to clipboard\par
+\pard\li360\sa60\bullet  \b F12\b0 : Take screenshot\par
+\pard\li360\sa60\bullet  \b 1\endash 7\b0 : Load preset circuits (see Section 8)\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 7. Gate Reference\b0\fs20\par
+\pard\keepn\sa150\b\fs24 7.1. Single-Qubit Gates\b0\fs20\par
+\pard\sa60\b H (Hadamard)\b0 : Creates equal superposition. |0\rquote  becomes (|0\rquote +|1\rquote )/sqrt(2).\par
+\pard\sa60\b X (Pauli-X)\b0 : Bit flip (quantum NOT). Swaps |0\rquote  and |1\rquote .\par
+\pard\sa60\b Y (Pauli-Y)\b0 : Bit and phase flip. |0\rquote  becomes i|1\rquote .\par
+\pard\sa60\b Z (Pauli-Z)\b0 : Phase flip. |1\rquote  becomes \endash |1\rquote .\par
+\pard\sa60\b S (S Phase)\b0 : Pi/2 phase gate. |1\rquote  becomes i|1\rquote . S squared equals Z.\par
+\pard\sa60\b T (T Phase)\b0 : Pi/4 phase gate. |1\rquote  becomes e^(i*pi/4)|1\rquote . T squared equals S.\par
+\pard\sa60\b Rx (Rx pi/2)\b0 : Rotation of pi/2 around the X-axis on the Bloch sphere.\par
+\pard\sa60\b Ry (Ry pi/2)\b0 : Rotation of pi/2 around the Y-axis on the Bloch sphere.\par
+\pard\sa60\b Rz (Rz pi/2)\b0 : Rotation of pi/2 around the Z-axis on the Bloch sphere.\par
+
+\pard\keepn\sa150\b\fs24 7.2. Multi-Qubit Gates\b0\fs20\par
+\pard\sa60\b CX (CNOT)\b0 : 2-qubit gate. Flips target qubit if control qubit is |1\rquote . Creates entanglement.\par
+\pard\sa60\b CZ (Controlled-Z)\b0 : 2-qubit gate. Applies phase flip if both qubits are |1\rquote .\par
+\pard\sa60\b SW (SWAP)\b0 : 2-qubit gate. Exchanges the states of two qubits.\par
+\pard\sa60\b CCX (Toffoli)\b0 : 3-qubit gate. Flips target if both controls are |1\rquote .\par
+\pard\sa60\b CSW (Fredkin)\b0 : 3-qubit gate. Swaps two target qubits if control is |1\rquote .\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 8. Preset Circuits\b0\fs20\par
+\pard\sa100 Press the number keys 1 through 7 to load these preset circuits:\par
+\pard\sa60\b 1 \endash  Bell State\b0  (2 qubits): H on q0, CNOT(q0, q1). Demonstrates entanglement.\par
+\pard\sa60\b 2 \endash  GHZ State\b0  (3 qubits): H on q0, CNOT(q0,q1), CNOT(q0,q2). Three-qubit entanglement.\par
+\pard\sa60\b 3 \endash  Superposition Chain\b0  (N qubits): Hadamard on every qubit. Uniform superposition.\par
+\pard\sa60\b 4 \endash  Phase Kickback\b0  (2 qubits): Deutsch-like circuit demonstrating phase kickback.\par
+\pard\sa60\b 5 \endash  Grover Search\b0  (3 qubits): Searches for the state |101\rquote .\par
+\pard\sa60\b 6 \endash  Toffoli\b0  (3 qubits): X on q0 and q1, then CCX(q0,q1,q2). Classical AND gate.\par
+\pard\sa60\b 7 \endash  Quantum Fourier Transform\b0  (3 qubits): Full QFT circuit.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 9. Noise Simulation\b0\fs20\par
+\pard\sa100 The visualizer supports three noise models that can be enabled in the Inspector or toggled at runtime with the N key:\par
+\pard\li360\sa60\bullet  \b Depolarizing Noise\b0 : Each gate has a probability of being replaced by a random Pauli error (X, Y, or Z).\par
+\pard\li360\sa60\bullet  \b Dephasing Noise\b0 : Random phase errors (Z rotations) applied after each gate.\par
+\pard\li360\sa60\bullet  \b Amplitude Damping\b0 : Simulates energy loss, modeling T1 relaxation.\par
+\pard\sa100 When noise is enabled, "[NOISY]" appears in the status bar.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 10. Export Features\b0\fs20\par
+\pard\sa60\b QASM Export (F5)\b0 : Copies the current circuit as OpenQASM 2.0 format to the system clipboard. You can paste this into IBM Quantum Composer or other QASM-compatible tools.\par
+\pard\sa60\b Screenshot (F12)\b0 : Captures a screenshot at 2x resolution. The file is saved to the project root directory with a timestamped filename.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 11. Script Reference\b0\fs20\par
+\pard\sa100 All scripts are organized under the QuantumCircuitViz namespace.\par
+
+\pard\keepn\sa150\b\fs24 11.1. DemoSimulation\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Demo\par
+\pard\sa60\b Assembly:\b0  QuantumCircuitViz.Demo\par
+\pard\sa100 MonoBehaviour that serves as the main entry point. Attach to any GameObject and enter Play Mode. It creates all required scene objects (camera, canvas, event system) and manages the three views, input handling, circuit presets, and state propagation.\par
+\pard\sa60\b Public Fields:\b0\par
+\pard\li360\sa60\bullet  \f1 SimulationConfig config\f0  \endash  Inspector-configurable simulation settings.\par
+\pard\li360\sa60\bullet  \f1 bool autoPlay\f0  \endash  Whether to auto-step through gates on start.\par
+
+\pard\keepn\sa150\b\fs24 11.2. SimulationConfig\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Core\par
+\pard\sa100 Serializable configuration class exposed in the Inspector. Contains all visualization and noise parameters. See Section 4.2 for all fields.\par
+
+\pard\keepn\sa150\b\fs24 11.3. CircuitRunner\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Core\par
+\pard\sa100 Wraps the CSharpNumerics QuantumCircuit and provides step-by-step execution. Created via the static method \f1 CircuitRunner.FromBuilder(QuantumCircuit)\f0 . Key methods:\par
+\pard\li360\sa60\bullet  \f1 QuantumState RunUpTo(int step)\f0  \endash  Execute gates from |0...0> up to the given step index and return the resulting state.\par
+\pard\li360\sa60\bullet  \f1 void WithNoise(float depol, float dephase, float gamma)\f0  \endash  Enable noise with specified rates.\par
+\pard\li360\sa60\bullet  \f1 List<GateStep> Steps\f0  \endash  The list of gate steps in the circuit.\par
+\pard\li360\sa60\bullet  \f1 int QubitCount\f0  \endash  Number of qubits.\par
+
+\pard\keepn\sa150\b\fs24 11.4. GateLibrary\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Core\par
+\pard\sa100 Static registry of all available quantum gates with display metadata (symbol, name, description, color, factory method). Provides:\par
+\pard\li360\sa60\bullet  \f1 IReadOnlyList<GateInfo> SingleQubitGates\f0\par
+\pard\li360\sa60\bullet  \f1 IReadOnlyList<GateInfo> MultiQubitGates\f0\par
+\pard\li360\sa60\bullet  \f1 IReadOnlyList<GateInfo> AllGates\f0\par
+\pard\li360\sa60\bullet  \f1 GateInfo Find(QuantumGate gate)\f0  \endash  Look up metadata for a runtime gate.\par
+
+\pard\keepn\sa150\b\fs24 11.5. CircuitGridView\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Visualization\par
+\pard\sa100 MonoBehaviour that renders the interactive circuit editor UI. Handles the gate palette, qubit wires, gate block rendering, step cursor, transport controls, and classical register display. Key events:\par
+\pard\li360\sa60\bullet  \f1 event Action<List<GateStep>, int> OnCircuitChanged\f0  \endash  Fires when the user places or removes a gate.\par
+\pard\li360\sa60\bullet  \f1 event Action<int> OnMeasureRequested\f0  \endash  Fires when the user clicks a measurement icon.\par
+\pard\li360\sa60\bullet  \f1 event Action<int> OnNewCircuit\f0  \endash  Fires when a new blank circuit is created.\par
+
+\pard\keepn\sa150\b\fs24 11.6. StateView\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Visualization\par
+\pard\sa100 MonoBehaviour that displays the quantum state vector in Dirac notation with amplitude values and per-basis-state probabilities.\par
+\pard\li360\sa60\bullet  \f1 void UpdateState(QuantumState state)\f0  \endash  Update the display with a new quantum state.\par
+
+\pard\keepn\sa150\b\fs24 11.7. BlochSphereView\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Visualization\par
+\pard\sa100 MonoBehaviour that manages the Bloch sphere 3D view with qubit selection, entanglement detection, and state info overlay. Uses BlochSphereRenderer for 3D rendering.\par
+\pard\li360\sa60\bullet  \f1 void UpdateState(QuantumState state)\f0  \endash  Compute reduced Bloch vectors and purities for all qubits.\par
+\pard\li360\sa60\bullet  \f1 void SelectQubit(int q)\f0  \endash  Switch the displayed qubit.\par
+
+\pard\keepn\sa150\b\fs24 11.8. MeasurementHistogram\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Visualization\par
+\pard\sa100 MonoBehaviour that renders measurement probability bars. Supports animated shot-by-shot sampling.\par
+\pard\li360\sa60\bullet  \f1 void UpdateProbabilities(VectorN probs)\f0  \endash  Set bar heights from analytical probabilities.\par
+\pard\li360\sa60\bullet  \f1 void AnimateSampling(VectorN probs, int totalShots, float shotsPerSecond)\f0  \endash  Animate measurement sampling.\par
+
+\pard\keepn\sa150\b\fs24 11.9. CircuitExporter\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Export\par
+\pard\sa100 Static utility class for exporting circuits.\par
+\pard\li360\sa60\bullet  \f1 static string ToQASM(CircuitRunner runner)\f0  \endash  Convert a circuit to OpenQASM 2.0 format.\par
+
+\pard\keepn\sa150\b\fs24 11.10. ScreenshotUtility\b0\fs20\par
+\pard\sa60\b Namespace:\b0  QuantumCircuitViz.Export\par
+\pard\sa100 Static utility class for capturing screenshots.\par
+\pard\li360\sa60\bullet  \f1 static string Capture(int superSize = 1)\f0  \endash  Capture screenshot and return the file path.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 12. Assembly Definitions\b0\fs20\par
+\pard\sa100 The package uses three assembly definitions:\par
+\pard\li360\sa60\bullet  \b QuantumCircuitViz.Runtime\b0  \endash  Core runtime scripts. References CSharpNumerics.dll.\par
+\pard\li360\sa60\bullet  \b QuantumCircuitViz.Editor\b0  \endash  Editor-only scripts (custom inspectors). References Runtime assembly.\par
+\pard\li360\sa60\bullet  \b QuantumCircuitViz.Demo\b0  \endash  Demo scripts. References Runtime assembly and CSharpNumerics.dll.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 13. Troubleshooting\b0\fs20\par
+\pard\sa100\b Missing CSharpNumerics.dll errors:\b0  Verify the DLL exists at Assets/Plugins/CSharpNumerics/CSharpNumerics.dll.\par
+\pard\sa100\b Nothing appears in Play Mode:\b0  Ensure a DemoSimulation component is attached to a GameObject in the scene. The script creates all visual elements at runtime.\par
+\pard\sa100\b Keyboard input not working:\b0  Click inside the Game view to give it focus. Both Legacy Input Manager and New Input System are supported.\par
+\pard\sa100\b Bloch sphere wireframe looks jagged:\b0  Increase the Wireframe Segments value in the Inspector (recommended: 256).\par
+\pard\sa100\b Serialized values not updating after code changes:\b0  Remove the DemoSimulation component and re-add it, or right-click the component header and select Reset.\par
+\pard\sa200\par
+
+\pard\keepn\sa200\b\fs28 14. Support\b0\fs20\par
+\pard\sa100 For questions, bug reports, or feature requests, please contact the author through the Unity Asset Store publisher page.\par
+\pard\sa200\par
+
+\pard\qc\cf3\fs18 Quantum Circuit Visualizer v1.0.0 \endash  Copyright 2026 Goran Backlund\cf0\par
+}
