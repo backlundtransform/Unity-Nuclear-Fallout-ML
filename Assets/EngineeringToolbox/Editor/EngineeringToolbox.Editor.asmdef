@@ -1,0 +1,20 @@
+{
+    "name": "EngineeringToolbox.Editor",
+    "rootNamespace": "EngineeringToolbox.Editor",
+    "references": [
+        "EngineeringToolbox.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "CSharpNumerics.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

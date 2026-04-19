@@ -1,0 +1,26 @@
+{
+    "name": "EngineeringToolbox.Demo",
+    "rootNamespace": "EngineeringToolbox.Demo",
+    "references": [
+        "EngineeringToolbox.Runtime",
+        "Unity.ugui",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "CSharpNumerics.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "1.0.0",
+            "define": "HAS_INPUT_SYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}

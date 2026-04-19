@@ -1,0 +1,24 @@
+{
+  "name": "com.csnumerics.engineering-toolbox",
+  "version": "0.1.0",
+  "displayName": "Engineering Toolbox",
+  "description": "Interactive multiphysics demonstration tool for students and teachers. Heat transfer, electrostatics, pipe flow, and beam stress — powered by CSharpNumerics.",
+  "unity": "2021.3",
+  "dependencies": {},
+  "optionalDependencies": {},
+  "keywords": [
+    "physics",
+    "multiphysics",
+    "heat-transfer",
+    "electrostatics",
+    "beam-stress",
+    "pipe-flow",
+    "vector-field",
+    "engineering",
+    "education",
+    "simulation"
+  ],
+  "author": {
+    "name": "Goran Backlund"
+  }
+}
