@@ -50,28 +50,28 @@ These capabilities are **missing in CSharpNumerics** and must be added there bef
 
 Foundation: project scaffold, material UI, heatmap renderer, and the first working module (heat transfer).
 
-- [ ] Scaffold `Assets/EngineeringToolbox/` with Runtime, Editor, Demo asmdefs
-- [ ] `SimulationConfig` — serializable config with module selector enum
+- [x] Scaffold `Assets/EngineeringToolbox/` with Runtime, Editor, Demo asmdefs
+- [x] `SimulationConfig` — serializable config with module selector enum
 - [ ] `MaterialPicker` — dropdown UI for `EngineeringLibrary` materials + custom material input (k, ρ, cp, E, ν, ε, μ_viscosity)
-- [ ] `HeatmapRenderer` — reusable `Texture2D` renderer mapping `double[,]` to color gradient (coolwarm, viridis, inferno)
+- [x] `HeatmapRenderer` — reusable `Texture2D` renderer mapping `double[,]` to color gradient (coolwarm, viridis, inferno)
 - [ ] `ColorGradient` — configurable LUT with min/max auto-scaling and legend bar
 - [ ] `SimulationManager` — MonoBehaviour orchestrating build → solve → visualize pipeline
 - [ ] `HeatTransferModule` — wraps `MultiphysicsType.HeatPlate`, exposes boundary temperatures and point sources via Inspector
-- [ ] `TimelinePlayer` — play/pause/scrub through `SimulationTimeline` snapshots
-- [ ] `DemoSimulation.cs` — zero-setup demo running heat transfer with animated heatmap
-- [ ] Keyboard controls: Space (play/pause), ←/→ (step), R (reset), M (cycle material)
+- [x] `TimelinePlayer` — play/pause/scrub through `SimulationTimeline` snapshots
+- [x] `DemoSimulation.cs` — zero-setup demo running heat transfer with animated heatmap
+- [x] Keyboard controls: Space (play/pause), ←/→ (step), R (reset), M (cycle material)
 
 ## Phase 2 — Electrostatics & Vector Field Visualization
 
 Add electric field module with vector arrow overlay.
 
-- [ ] `VectorFieldOverlay` — renders arrow glyphs on top of heatmap from `Ex[,]`/`Ey[,]` data (line renderer or procedural mesh)
+- [x] `VectorFieldOverlay` — renders arrow glyphs on top of heatmap from `Ex[,]`/`Ey[,]` data (line renderer or procedural mesh)
 - [ ] `ElectrostaticsModule` — wraps `MultiphysicsType.ElectricField`, exposes charges and boundary voltages
-- [ ] Arrow scaling: magnitude → length + color, configurable density (skip every N cells)
-- [ ] Toggle overlay: heatmap-only / vectors-only / both
+- [x] Arrow scaling: magnitude → length + color, configurable density (skip every N cells)
+- [x] Toggle overlay: heatmap-only / vectors-only / both
 - [ ] Streamline renderer (optional) — trace field lines from seed points
-- [ ] Add electrostatics scenario to `DemoSimulation`
-- [ ] Keyboard: V (toggle vectors), +/− (arrow density)
+- [x] Add electrostatics scenario to `DemoSimulation`
+- [x] Keyboard: V (toggle vectors), +/− (arrow density)
 
 ## Phase 3 — Pipe Flow & Beam Stress Modules
 

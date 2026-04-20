@@ -37,14 +37,13 @@ namespace EngineeringToolbox.Visualization
 
         /// <summary>
         /// Renders the scalar field to a texture. Returns the updated texture.
+        /// Auto-scales min/max from the field data.
         /// </summary>
         public Texture2D Render(double[,] field)
         {
             int w = field.GetLength(0);
             int h = field.GetLength(1);
-            Resize(w, h);
 
-            // Find min/max for normalization
             double min = double.MaxValue;
             double max = double.MinValue;
             for (int x = 0; x < w; x++)
@@ -54,6 +53,19 @@ namespace EngineeringToolbox.Visualization
                 if (v < min) min = v;
                 if (v > max) max = v;
             }
+
+            return Render(field, min, max);
+        }
+
+        /// <summary>
+        /// Renders the scalar field to a texture using explicit min/max for normalization.
+        /// Use this overload when animating a timeline so all frames share the same color scale.
+        /// </summary>
+        public Texture2D Render(double[,] field, double min, double max)
+        {
+            int w = field.GetLength(0);
+            int h = field.GetLength(1);
+            Resize(w, h);
 
             double range = max - min;
             if (range < 1e-12) range = 1.0;

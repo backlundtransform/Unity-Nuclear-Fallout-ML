@@ -48,6 +48,8 @@ namespace EngineeringToolbox.Demo
         private float _playTimer;
         private bool _showVectors = true;
         private int _materialIndex;
+        private double _globalMin;
+        private double _globalMax;
 
         // ── UI ───────────────────────────────────────────────────
         private Canvas _canvas;
@@ -77,11 +79,34 @@ namespace EngineeringToolbox.Demo
         {
             EnsureCamera();
             CreateCanvas();
+
+            // Force demo-friendly defaults — serialized Inspector values may be stale
+            ApplyDemoDefaults();
+
             _heatmapRenderer = new HeatmapRenderer(config.nx, config.ny);
             _vectorOverlay = new VectorFieldOverlay();
             _playing = autoPlay;
 
             await RunSimulation();
+        }
+
+        /// <summary>
+        /// Sets simulation parameters that produce clearly visible animation.
+        /// For steel 0.1m plate with 30 cells: dt=0.05 is stable, 200 steps = 10s total,
+        /// heat penetrates ~22mm (~7 cells) — clearly visible frame-to-frame change.
+        /// </summary>
+        private void ApplyDemoDefaults()
+        {
+            config.width = 0.1f;
+            config.height = 0.1f;
+            config.nx = 30;
+            config.ny = 30;
+            config.topBC = 100f;
+            config.bottomBC = 0f;
+            config.leftBC = 0f;
+            config.rightBC = 0f;
+            config.dt = 0.05f;
+            config.steps = 200;
         }
 
         private void Update()
@@ -208,6 +233,23 @@ namespace EngineeringToolbox.Demo
                     dt: config.dt,
                     dx: config.width / config.nx,
                     dy: config.height / config.ny);
+
+                // Compute global min/max across ALL frames so the color scale is consistent
+                _globalMin = double.MaxValue;
+                _globalMax = double.MinValue;
+                for (int f = 0; f < _timeline.Count; f++)
+                {
+                    var frame = _timeline[f].ToArray();
+                    int w = frame.GetLength(0);
+                    int h = frame.GetLength(1);
+                    for (int x = 0; x < w; x++)
+                    for (int y = 0; y < h; y++)
+                    {
+                        double v = frame[x, y];
+                        if (v < _globalMin) _globalMin = v;
+                        if (v > _globalMax) _globalMax = v;
+                    }
+                }
             }
             else if (_result != null && _result.Timeline1D != null && _result.Timeline1D.Count > 0)
             {
@@ -220,7 +262,9 @@ namespace EngineeringToolbox.Demo
 
             Debug.Log($"[EngineeringToolbox] {config.module} complete — " +
                       $"material={material.Name}, max={_result?.MaxValue:F3}, min={_result?.MinValue:F3}, " +
-                      $"iterations={_result?.Iterations}");
+                      $"iterations={_result?.Iterations}, " +
+                      $"timeline={_timeline?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, " +
+                      $"globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
 
             UpdateVisualization();
         }
@@ -236,9 +280,10 @@ namespace EngineeringToolbox.Demo
             switch (config.module)
             {
                 case PhysicsModule.HeatTransfer:
-                    Render2DField(_timeline != null && _currentFrame < _timeline.Count
-                        ? _timeline[_currentFrame].ToArray()
-                        : _result.Field);
+                    if (_timeline != null && _currentFrame < _timeline.Count)
+                        Render2DField(_timeline[_currentFrame].ToArray(), _globalMin, _globalMax);
+                    else
+                        Render2DField(_result.Field);
                     break;
 
                 case PhysicsModule.Electrostatics:
@@ -260,6 +305,13 @@ namespace EngineeringToolbox.Demo
         {
             if (field == null) return;
             var tex = _heatmapRenderer.Render(field);
+            _heatmapImage.texture = tex;
+        }
+
+        private void Render2DField(double[,] field, double min, double max)
+        {
+            if (field == null) return;
+            var tex = _heatmapRenderer.Render(field, min, max);
             _heatmapImage.texture = tex;
         }
 
@@ -369,6 +421,15 @@ namespace EngineeringToolbox.Demo
             r.offsetMin = Vector2.zero;
             r.offsetMax = Vector2.zero;
             return txt;
+        }
+
+        private void OnRenderObject()
+        {
+            if (_showVectors && config.module == PhysicsModule.Electrostatics
+                && _result != null && _result.Ex != null && _result.Ey != null)
+            {
+                _vectorOverlay.DrawGL(_heatmapImage.rectTransform);
+            }
         }
 
         private void CaptureScreenshot()

@@ -49,8 +49,8 @@ namespace EngineeringToolbox.Core
         public float rightBC = 0f;
 
         [Header("Time Stepping")]
-        [Range(1e-6f, 0.1f)] public float dt = 0.0001f;
-        [Range(10, 5000)] public int steps = 500;
+        [Range(1e-6f, 1f)] public float dt = 0.05f;
+        [Range(10, 5000)] public int steps = 300;
 
         [Header("1D Geometry (Pipe, Beam)")]
         [Range(0.1f, 10f)] public float length = 2f;
