@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,12 +10,18 @@ namespace EngineeringToolbox.Visualization
     /// </summary>
     public class VectorFieldOverlay
     {
+        private const float ArrowWidth = 0.014f;
+        private const float ArrowHeadLengthFactor = 0.26f;
+        private const float ArrowHeadWidthFactor = 0.16f;
+
         private double[,] _ex;
         private double[,] _ey;
         private int _nx, _ny;
         private RawImage _target;
         private Material _lineMaterial;
-        private int _skipFactor = 2;
+        private Material _worldLineMaterial;
+        private readonly List<LineRenderer> _worldLines = new List<LineRenderer>();
+        private int _skipFactor = 4;
         private bool _visible = true;
 
         public void Render(RawImage target, double[,] ex, double[,] ey, int nx, int ny)
@@ -87,6 +94,151 @@ namespace EngineeringToolbox.Visualization
 
             GL.End();
             GL.PopMatrix();
+        }
+
+        public void RenderWorld(Transform parent, Vector2 surfaceSize, double[,] ex, double[,] ey, int nx, int ny)
+        {
+            RenderWorld(parent, surfaceSize, ex, ey, nx, ny, 0f);
+        }
+
+        public void RenderWorld(Transform parent, Vector2 surfaceSize, double[,] ex, double[,] ey, int nx, int ny, float phase)
+        {
+            _ex = ex;
+            _ey = ey;
+            _nx = nx;
+            _ny = ny;
+
+            if (!_visible || parent == null || ex == null || ey == null)
+            {
+                ClearWorld();
+                return;
+            }
+
+            EnsureWorldLineMaterial();
+
+            double maxMagnitude = 0.0;
+            for (int x = 0; x < nx; x += _skipFactor)
+            for (int y = 0; y < ny; y += _skipFactor)
+            {
+                double magnitude = System.Math.Sqrt(ex[x, y] * ex[x, y] + ey[x, y] * ey[x, y]);
+                if (magnitude > maxMagnitude)
+                {
+                    maxMagnitude = magnitude;
+                }
+            }
+
+            if (maxMagnitude < 1e-12)
+            {
+                ClearWorld();
+                return;
+            }
+
+            int lineIndex = 0;
+            int effectiveSkip = Mathf.Max(_skipFactor, Mathf.CeilToInt(Mathf.Max(nx, ny) / 10f));
+            float cellWidth = surfaceSize.x / nx;
+            float cellHeight = surfaceSize.y / ny;
+            float arrowScale = Mathf.Min(cellWidth, cellHeight) * effectiveSkip * 0.72f;
+
+            for (int ix = 0; ix < nx; ix += effectiveSkip)
+            for (int iy = 0; iy < ny; iy += effectiveSkip)
+            {
+                var line = GetWorldLine(lineIndex++, parent);
+
+                float magnitude = (float)(System.Math.Sqrt(ex[ix, iy] * ex[ix, iy] + ey[ix, iy] * ey[ix, iy]) / maxMagnitude);
+                float deltaX = (float)(ex[ix, iy] / maxMagnitude) * arrowScale;
+                float deltaY = (float)(ey[ix, iy] / maxMagnitude) * arrowScale;
+                Color color = Color.Lerp(new Color(0.35f, 0.9f, 1f, 0.9f), new Color(1f, 0.92f, 0.45f, 1f), magnitude);
+
+                Vector2 direction = new Vector2(deltaX, deltaY);
+                if (direction.sqrMagnitude < 1e-6f)
+                {
+                    line.gameObject.SetActive(false);
+                    continue;
+                }
+
+                Vector2 normalized = direction.normalized;
+                Vector2 normal = new Vector2(-normalized.y, normalized.x);
+                float cellPhase = Mathf.Repeat(phase + ((ix * 0.173f) + (iy * 0.097f)), 1f);
+                Vector2 flowOffset = normalized * ((cellPhase - 0.5f) * direction.magnitude * 0.85f);
+                float arrowHeadLength = direction.magnitude * ArrowHeadLengthFactor;
+                float arrowHeadWidth = direction.magnitude * ArrowHeadWidthFactor;
+                float localX = -surfaceSize.x * 0.5f + (ix + 0.5f) * cellWidth + flowOffset.x;
+                float localY = -surfaceSize.y * 0.5f + (iy + 0.5f) * cellHeight + flowOffset.y;
+                Vector3 start = new Vector3(localX, localY, -0.02f);
+                Vector3 tip = new Vector3(localX + deltaX, localY + deltaY, -0.02f);
+                Vector3 headBase = tip - new Vector3(normalized.x, normalized.y, 0f) * arrowHeadLength;
+                Vector3 headLeft = headBase + new Vector3(normal.x, normal.y, 0f) * arrowHeadWidth;
+                Vector3 headRight = headBase - new Vector3(normal.x, normal.y, 0f) * arrowHeadWidth;
+
+                line.gameObject.SetActive(true);
+                line.startColor = color;
+                line.endColor = color;
+                line.positionCount = 5;
+                line.widthMultiplier = ArrowWidth;
+                line.SetPosition(0, start);
+                line.SetPosition(1, tip);
+                line.SetPosition(2, headLeft);
+                line.SetPosition(3, tip);
+                line.SetPosition(4, headRight);
+            }
+
+            for (int i = lineIndex; i < _worldLines.Count; i++)
+            {
+                if (_worldLines[i] != null)
+                {
+                    _worldLines[i].gameObject.SetActive(false);
+                }
+            }
+        }
+
+        public void ClearWorld()
+        {
+            for (int i = 0; i < _worldLines.Count; i++)
+            {
+                if (_worldLines[i] != null)
+                {
+                    _worldLines[i].gameObject.SetActive(false);
+                }
+            }
+        }
+
+        private void EnsureWorldLineMaterial()
+        {
+            if (_worldLineMaterial != null)
+            {
+                return;
+            }
+
+            var shader = Shader.Find("Sprites/Default");
+            _worldLineMaterial = new Material(shader);
+        }
+
+        private LineRenderer GetWorldLine(int index, Transform parent)
+        {
+            while (_worldLines.Count <= index)
+            {
+                var lineObject = new GameObject($"VectorLine_{_worldLines.Count}");
+                var line = lineObject.AddComponent<LineRenderer>();
+                line.material = _worldLineMaterial;
+                line.useWorldSpace = false;
+                line.alignment = LineAlignment.TransformZ;
+                line.textureMode = LineTextureMode.Stretch;
+                line.positionCount = 5;
+                line.widthMultiplier = ArrowWidth;
+                line.numCapVertices = 0;
+                line.numCornerVertices = 0;
+                line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                line.receiveShadows = false;
+                _worldLines.Add(line);
+            }
+
+            var worldLine = _worldLines[index];
+            if (worldLine.transform.parent != parent)
+            {
+                worldLine.transform.SetParent(parent, false);
+            }
+
+            return worldLine;
         }
 
         public void SetVisible(bool visible) => _visible = visible;

@@ -71,7 +71,7 @@ Add electric field module with vector arrow overlay.
 - [x] Toggle overlay: heatmap-only / vectors-only / both
 - [ ] Streamline renderer (optional) — trace field lines from seed points
 - [x] Add electrostatics scenario to `DemoSimulation`
-- [x] Keyboard: V (toggle vectors), +/− (arrow density)
+- [ ] Keyboard: V (toggle vectors), +/− (arrow density)
 
 ## Phase 3 — Pipe Flow & Beam Stress Modules
 
@@ -80,10 +80,10 @@ Add electric field module with vector arrow overlay.
 - [ ] `ProfilePlotRenderer` — reusable 1D line-chart renderer (positions vs values) using UI LineRenderer or procedural mesh
 - [ ] `PipeFlowModule` — wraps `MultiphysicsType.PipeFlow`, shows radial velocity profile with timeline animation
 - [ ] `BeamStressModule` — wraps `MultiphysicsType.BeamStress`, shows deflection + moment + shear + stress curves
-- [ ] Support type toggle (Cantilever / Simply Supported / Fixed-Fixed)
-- [ ] Load input: point load position+magnitude, distributed load
+- [x] Support type toggle (Cantilever / Simply Supported / Fixed-Fixed)
+- [x] Load input: point load position+magnitude, distributed load
 - [ ] Cross-section picker (rectangular / circular / custom I)
-- [ ] Add both modules to `DemoSimulation` with tab/keyboard switching
+- [x] Add both modules to `DemoSimulation` with tab/keyboard switching
 
 ## Phase 4 — Scenario Manager & Comparison
 
@@ -109,7 +109,7 @@ Expose stochastic analysis for uncertainty-aware teaching.
 
 ## Phase 6 — Export & Polish
 
-- [ ] Screenshot utility (F12)
+- [x] Screenshot utility (F12)
 - [ ] Export current result to JSON (`MultiphysicsJsonExporter`)
 - [ ] Export timeline to MPHY binary (`MultiphysicsBinaryExporter`)
 - [ ] CSV export for 1D profiles (beam, pipe flow)

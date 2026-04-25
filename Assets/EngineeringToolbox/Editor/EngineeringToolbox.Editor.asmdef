@@ -2,7 +2,8 @@
     "name": "EngineeringToolbox.Editor",
     "rootNamespace": "EngineeringToolbox.Editor",
     "references": [
-        "EngineeringToolbox.Runtime"
+        "EngineeringToolbox.Runtime",
+        "EngineeringToolbox.Demo"
     ],
     "includePlatforms": [
         "Editor"

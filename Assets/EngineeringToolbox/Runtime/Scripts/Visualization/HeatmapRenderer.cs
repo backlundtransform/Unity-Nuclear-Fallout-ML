@@ -3,12 +3,24 @@ using UnityEngine;
 namespace EngineeringToolbox.Visualization
 {
     /// <summary>
-    /// Maps a 2D double[,] scalar field to a <see cref="Texture2D"/> using a coolwarm color gradient.
+    /// Maps a 2D double[,] scalar field to a <see cref="Texture2D"/> using a seven-stop engineering gradient.
     /// Supports auto min/max scaling.
     /// </summary>
     public class HeatmapRenderer
     {
+        private static readonly Color[] EngineeringGradient =
+        {
+            new Color(0.07f, 0.28f, 0.78f),
+            new Color(0.39f, 0.74f, 1.0f),
+            new Color(0.12f, 0.66f, 0.24f),
+            new Color(0.58f, 0.89f, 0.40f),
+            new Color(0.98f, 0.87f, 0.16f),
+            new Color(0.97f, 0.52f, 0.12f),
+            new Color(0.84f, 0.10f, 0.10f)
+        };
+
         private Texture2D _texture;
+        private Texture2D _legendTexture;
         private int _nx;
         private int _ny;
 
@@ -74,7 +86,7 @@ namespace EngineeringToolbox.Visualization
             for (int y = 0; y < h; y++)
             {
                 float t = (float)((field[x, y] - min) / range);
-                _texture.SetPixel(x, y, CoolWarm(t));
+                _texture.SetPixel(x, y, EvaluateColor(t));
             }
 
             _texture.Apply();
@@ -82,21 +94,62 @@ namespace EngineeringToolbox.Visualization
         }
 
         /// <summary>
-        /// Cool-warm diverging colormap: blue (0) → white (0.5) → red (1).
+        /// Creates a vertical legend texture that uses the same color mapping as the heatmap.
+        /// Top corresponds to the maximum value, bottom to the minimum.
         /// </summary>
-        private static Color CoolWarm(float t)
+        public Texture2D RenderLegend(int width, int height)
+        {
+            if (_legendTexture == null || _legendTexture.width != width || _legendTexture.height != height)
+            {
+                _legendTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                float t = height > 1 ? y / (float)(height - 1) : 0f;
+                Color color = EvaluateColor(t);
+                for (int x = 0; x < width; x++)
+                {
+                    _legendTexture.SetPixel(x, y, color);
+                }
+            }
+
+            _legendTexture.Apply();
+            return _legendTexture;
+        }
+
+        /// <summary>
+        /// Engineering gradient: blue → light blue → green → light green → yellow → orange → red.
+        /// </summary>
+        public static Color EvaluateColor(float t)
+        {
+            return SampleGradient(t);
+        }
+
+        private static Color SampleGradient(float t)
         {
             t = Mathf.Clamp01(t);
-            if (t < 0.5f)
+
+            if (EngineeringGradient.Length == 1)
             {
-                float s = t * 2f; // 0..1
-                return new Color(s, s, 1f); // blue → white
+                return EngineeringGradient[0];
             }
-            else
+
+            float scaled = t * (EngineeringGradient.Length - 1);
+            int lowerIndex = Mathf.FloorToInt(scaled);
+            int upperIndex = Mathf.Min(lowerIndex + 1, EngineeringGradient.Length - 1);
+            float blend = scaled - lowerIndex;
+
+            if (lowerIndex >= EngineeringGradient.Length - 1)
             {
-                float s = (t - 0.5f) * 2f; // 0..1
-                return new Color(1f, 1f - s, 1f - s); // white → red
+                return EngineeringGradient[EngineeringGradient.Length - 1];
             }
+
+            return Color.Lerp(EngineeringGradient[lowerIndex], EngineeringGradient[upperIndex], blend);
         }
     }
 }
