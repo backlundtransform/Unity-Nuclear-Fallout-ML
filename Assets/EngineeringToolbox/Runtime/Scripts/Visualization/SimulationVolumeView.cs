@@ -25,6 +25,7 @@ namespace EngineeringToolbox.Visualization
         private const float VolumeSize = 2.8f;
         private const float EdgeThickness = 0.028f;
         private const float SliceThickness = 0.035f;
+        private const float GridLineThickness = 0.0045f;
         private const float AxisLength = 0.8f;
         private const float AxisThickness = 0.028f;
         private const float AxisColliderThickness = 0.12f;
@@ -34,16 +35,19 @@ namespace EngineeringToolbox.Visualization
         private Transform _volumeRoot;
         private Transform _gizmoRoot;
         private Transform _sliceBody;
+        private Transform _gridAnchor;
         private Transform _vectorAnchor;
         private Material _frameMaterial;
         private Material _cornerMaterial;
         private Material _accentMaterial;
         private Material _sliceMaterial;
+        private Material _gridMaterial;
         private Vector2 _surfaceSize = new Vector2(2.15f, 2.15f);
         private float _baseSliceHeight;
         private readonly List<Renderer> _frameRenderers = new List<Renderer>();
         private readonly List<Renderer> _cornerRenderers = new List<Renderer>();
         private readonly List<Renderer> _accentRenderers = new List<Renderer>();
+        private readonly List<LineRenderer> _gridLines = new List<LineRenderer>();
         private readonly Collider[] _axisColliders = new Collider[3];
         private readonly Material[] _axisMaterials = new Material[3];
         private readonly Color[] _axisColors =
@@ -116,7 +120,47 @@ namespace EngineeringToolbox.Visualization
 
             _sliceBody.localScale = new Vector3(_surfaceSize.x, _surfaceSize.y, SliceThickness);
             _sliceBody.localPosition = new Vector3(0f, _baseSliceHeight, 0f);
+            if (_gridAnchor != null)
+            {
+                _gridAnchor.localPosition = Vector3.zero;
+            }
             _vectorAnchor.localPosition = new Vector3(0f, 0f, -SliceThickness * 0.75f);
+        }
+
+        public void ConfigureGrid(PhysicsModule module, int xSegments, int ySegments)
+        {
+            bool showGrid = module == PhysicsModule.HeatTransfer || module == PhysicsModule.Electrostatics;
+            if (!showGrid || _gridAnchor == null)
+            {
+                SetGridActive(false, 0);
+                return;
+            }
+
+            int clampedX = Mathf.Max(1, xSegments);
+            int clampedY = Mathf.Max(1, ySegments);
+            float left = -_surfaceSize.x * 0.5f;
+            float bottom = -_surfaceSize.y * 0.5f;
+            float z = -SliceThickness * 0.46f;
+            Color color = new Color(0.88f, 0.96f, 1f, 0.24f);
+            int lineIndex = 0;
+
+            for (int ix = 0; ix <= clampedX; ix++)
+            {
+                float x = left + (_surfaceSize.x * ix / clampedX);
+                ConfigureGridLine(GetGridLine(lineIndex++), color,
+                    new Vector3(x, bottom, z),
+                    new Vector3(x, bottom + _surfaceSize.y, z));
+            }
+
+            for (int iy = 0; iy <= clampedY; iy++)
+            {
+                float y = bottom + (_surfaceSize.y * iy / clampedY);
+                ConfigureGridLine(GetGridLine(lineIndex++), color,
+                    new Vector3(left, y, z),
+                    new Vector3(left + _surfaceSize.x, y, z));
+            }
+
+            SetGridActive(true, lineIndex);
         }
 
         public void SetTexture(Texture texture)
@@ -317,6 +361,10 @@ namespace EngineeringToolbox.Visualization
 
             _sliceMaterial = CreateUnlitTextureMaterial();
             ApplyMaterial(slice, _sliceMaterial);
+
+            _gridAnchor = new GameObject("GridAnchor").transform;
+            _gridAnchor.SetParent(_sliceBody, false);
+            _gridMaterial = CreateGridMaterial();
 
             _vectorAnchor = new GameObject("VectorAnchor").transform;
             _vectorAnchor.SetParent(_sliceBody, false);
@@ -527,6 +575,59 @@ namespace EngineeringToolbox.Visualization
             var material = new Material(shader);
             material.color = color;
             return material;
+        }
+
+        private static Material CreateGridMaterial()
+        {
+            var shader = Shader.Find("Sprites/Default");
+            var material = new Material(shader);
+            material.color = new Color(0.88f, 0.96f, 1f, 0.24f);
+            return material;
+        }
+
+        private LineRenderer GetGridLine(int index)
+        {
+            while (_gridLines.Count <= index)
+            {
+                var lineObject = new GameObject($"SliceGridLine_{_gridLines.Count}");
+                lineObject.transform.SetParent(_gridAnchor, false);
+                var line = lineObject.AddComponent<LineRenderer>();
+                line.material = _gridMaterial;
+                line.useWorldSpace = false;
+                line.alignment = LineAlignment.TransformZ;
+                line.textureMode = LineTextureMode.Stretch;
+                line.positionCount = 2;
+                line.widthMultiplier = GridLineThickness;
+                line.numCapVertices = 0;
+                line.numCornerVertices = 0;
+                line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                line.receiveShadows = false;
+                _gridLines.Add(line);
+            }
+
+            return _gridLines[index];
+        }
+
+        private void ConfigureGridLine(LineRenderer line, Color color, Vector3 start, Vector3 end)
+        {
+            line.gameObject.SetActive(true);
+            line.startColor = color;
+            line.endColor = color;
+            line.positionCount = 2;
+            line.widthMultiplier = GridLineThickness;
+            line.SetPosition(0, start);
+            line.SetPosition(1, end);
+        }
+
+        private void SetGridActive(bool isActive, int activeLineCount)
+        {
+            for (int i = 0; i < _gridLines.Count; i++)
+            {
+                if (_gridLines[i] != null)
+                {
+                    _gridLines[i].gameObject.SetActive(isActive && i < activeLineCount);
+                }
+            }
         }
 
         private static MaterialVisualTheme GetTheme(EngineeringMaterial material)

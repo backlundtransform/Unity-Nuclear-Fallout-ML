@@ -13,7 +13,7 @@ namespace EngineeringToolbox.Demo
 {
     /// <summary>
     /// Self-contained Engineering Toolbox demo.
-    /// Attach to any empty GameObject → enter Play Mode → done.
+    /// Attach to any empty GameObject, enter Play Mode, done.
     ///
     /// Modules:
     ///   1 = Heat Transfer (2D heatmap, animated)
@@ -22,13 +22,13 @@ namespace EngineeringToolbox.Demo
     ///   4 = Beam Stress (deflection, moment, shear, stress)
     ///
     /// Controls:
-    ///   1-4       — select module
-    ///   Space     — play / pause timeline
-    ///   ←/→       — step backward / forward
-    ///   R         — re-run simulation
-    ///   M         — cycle material
-    ///   V         — toggle vector overlay (electrostatics)
-    ///   F12       — screenshot
+    ///   1-4        select module
+    ///   Space      play / pause timeline
+    ///   Left/Right step backward / forward
+    ///   R          re-run simulation
+    ///   M          cycle material
+    ///   V          toggle vector overlay (electrostatics)
+    ///   F12        screenshot
     /// </summary>
     public class DemoSimulation : MonoBehaviour
     {
@@ -43,7 +43,6 @@ namespace EngineeringToolbox.Demo
         [Range(0.1f, 4f)]
         public float electrostaticVectorSpeed = 1.15f;
 
-        // ── State ────────────────────────────────────────────────
         private SimulationResult _result;
         private SimulationTimeline _timeline;
         private List<double[]> _timeline1D;
@@ -64,7 +63,6 @@ namespace EngineeringToolbox.Demo
         private Vector3 _dragStartVolumeRotation;
         private VolumeMoveAxis _activeMoveAxis;
 
-        // ── Presentation ────────────────────────────────────────
         private Canvas _canvas;
         private Text _infoText;
         private Text _statusText;
@@ -73,6 +71,13 @@ namespace EngineeringToolbox.Demo
         private Text _legendTopValueText;
         private Text _legendBottomValueText;
         private RawImage _legendImage;
+        private RectTransform _chartOverlay;
+        private RectTransform _chartPanel;
+        private Text _chartTitleText;
+        private RawImage _chartImage;
+        private Text _chartFooterText;
+        private Button _chartToggleButton;
+        private Text _chartToggleButtonText;
         private Image _materialSwatchImage;
         private Text _materialSwatchText;
         private Button _playPauseButton;
@@ -87,8 +92,10 @@ namespace EngineeringToolbox.Demo
         private HeatmapRenderer _heatmapRenderer;
         private VectorFieldOverlay _vectorOverlay;
         private SimulationVolumeView _volumeView;
+        private Texture2D _chartTexture;
+        private double[] _chartSeries;
+        private bool _chartOverlayOpen;
 
-        // ── Material cycle list ──────────────────────────────────
         private static readonly MaterialPreset[] Materials = new[]
         {
             MaterialPreset.Steel,
@@ -108,15 +115,9 @@ namespace EngineeringToolbox.Demo
             PhysicsModule.BeamStress
         };
 
-        // ══════════════════════════════════════════════════════════
-        // Lifecycle
-        // ══════════════════════════════════════════════════════════
-
         private async void Start()
         {
             EnsureLighting();
-
-            // Force demo-friendly defaults — serialized Inspector values may be stale
             ApplyDemoDefaults();
 
             _heatmapRenderer = new HeatmapRenderer(config.nx, config.ny);
@@ -133,11 +134,6 @@ namespace EngineeringToolbox.Demo
             await RunSimulation();
         }
 
-        /// <summary>
-        /// Sets simulation parameters that produce clearly visible animation.
-        /// For steel 0.1m plate with 30 cells: dt=0.05 is stable, 200 steps = 10s total,
-        /// heat penetrates ~22mm (~7 cells) — clearly visible frame-to-frame change.
-        /// </summary>
         private void ApplyDemoDefaults()
         {
             config.width = 0.1f;
@@ -187,10 +183,6 @@ namespace EngineeringToolbox.Demo
             UpdateControlBar();
         }
 
-        // ══════════════════════════════════════════════════════════
-        // Input
-        // ══════════════════════════════════════════════════════════
-
         private void HandleInput()
         {
             if (Input.GetKeyDown(KeyCode.Alpha1)) { SelectModule(PhysicsModule.HeatTransfer); }
@@ -216,6 +208,7 @@ namespace EngineeringToolbox.Demo
             if (Input.GetKeyDown(KeyCode.M)) { CycleMaterial(); _ = RunSimulation(); }
             if (Input.GetKeyDown(KeyCode.V)) { _showVectors = !_showVectors; UpdateVisualization(); }
             if (Input.GetKeyDown(KeyCode.C)) { _volumeView.ResetOrientation(); FrameCameraToVolume(); UpdateInfoText(); }
+            if (Input.GetKeyDown(KeyCode.Escape) && _chartOverlayOpen) { SetChartOverlayOpen(false); }
             if (Input.GetKeyDown(KeyCode.F12)) CaptureScreenshot();
         }
 
@@ -235,11 +228,6 @@ namespace EngineeringToolbox.Demo
         private static bool SupportsVectorOverlay(PhysicsModule module)
         {
             return module == PhysicsModule.HeatTransfer || module == PhysicsModule.Electrostatics;
-        }
-
-        private static bool SupportsTimelinePlayback(PhysicsModule module)
-        {
-            return module == PhysicsModule.HeatTransfer || module == PhysicsModule.PipeFlow;
         }
 
         private static bool SupportsAnimatedPlayback(PhysicsModule module)
@@ -381,10 +369,6 @@ namespace EngineeringToolbox.Demo
             UpdateInfoText();
         }
 
-        // ══════════════════════════════════════════════════════════
-        // Simulation
-        // ══════════════════════════════════════════════════════════
-
         private async Task RunSimulation()
         {
             if (_isRunningSimulation)
@@ -401,9 +385,9 @@ namespace EngineeringToolbox.Demo
             _globalMin = 0.0;
             _globalMax = 1.0;
             _timeline1D = null;
+            _chartSeries = null;
 
             var material = config.GetMaterial();
-
             SimulationResult result = null;
 
             await Task.Run(() =>
@@ -426,7 +410,6 @@ namespace EngineeringToolbox.Demo
                             .WithGeometry(config.width, config.height, config.nx, config.ny)
                             .WithBoundary(top: config.topBC, bottom: config.bottomBC,
                                           left: config.leftBC, right: config.rightBC);
-                        // Add a central charge for the demo
                         builder = builder.AddSource(config.nx / 2, config.ny / 2, 1e-6);
                         result = builder.Solve(maxIterations: 20000, tolerance: 1e-8);
                         break;
@@ -446,9 +429,7 @@ namespace EngineeringToolbox.Demo
                             .WithCrossSection(width: config.sectionWidth, height: config.sectionHeight)
                             .WithBoundary(config.beamSupport);
                         if (config.pointLoadValue > 0)
-                            beamBuilder = beamBuilder.AddSource(
-                                position: config.pointLoadPosition * config.length,
-                                value: config.pointLoadValue);
+                            beamBuilder = beamBuilder.AddSource(position: config.pointLoadPosition * config.length, value: config.pointLoadValue);
                         if (config.distributedLoad > 0)
                             beamBuilder = beamBuilder.WithSource(config.distributedLoad);
                         result = beamBuilder.Solve();
@@ -459,9 +440,9 @@ namespace EngineeringToolbox.Demo
             _result = result;
             _volumeView.ApplyMaterialTheme(material);
             _volumeView.ConfigureForModule(config.module);
+            _volumeView.ConfigureGrid(config.module, config.nx, config.ny);
             FrameCameraToVolume();
 
-            // Build timeline for 2D transient modules
             if (_result != null && _result.Timeline != null && _result.Timeline.Count > 0)
             {
                 _timeline = SimulationTimeline.FromResult(_result,
@@ -469,7 +450,6 @@ namespace EngineeringToolbox.Demo
                     dx: config.width / config.nx,
                     dy: config.height / config.ny);
 
-                // Compute global min/max across ALL frames so the color scale is consistent
                 _globalMin = double.MaxValue;
                 _globalMax = double.MinValue;
                 for (int f = 0; f < _timeline.Count; f++)
@@ -509,11 +489,9 @@ namespace EngineeringToolbox.Demo
                 _timeline1D = null;
             }
 
-            Debug.Log($"[EngineeringToolbox] {config.module} complete — " +
-                      $"material={material.Name}, max={_result?.MaxValue:F3}, min={_result?.MinValue:F3}, " +
-                      $"iterations={_result?.Iterations}, " +
-                      $"timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, " +
-                      $"globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
+            BuildChartSeries();
+
+            Debug.Log($"[EngineeringToolbox] {config.module} complete - material={material.Name}, max={_result?.MaxValue:F3}, min={_result?.MinValue:F3}, iterations={_result?.Iterations}, timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
 
             UpdateVisualization();
 
@@ -526,10 +504,6 @@ namespace EngineeringToolbox.Demo
                 _ = RunSimulation();
             }
         }
-
-        // ══════════════════════════════════════════════════════════
-        // Visualization
-        // ══════════════════════════════════════════════════════════
 
         private void UpdateVisualization()
         {
@@ -608,7 +582,35 @@ namespace EngineeringToolbox.Demo
                     break;
             }
 
+            UpdateChart();
             UpdateInfoText();
+        }
+
+        private void BuildChartSeries()
+        {
+            if (_timeline != null && _timeline.Count > 1)
+            {
+                _chartSeries = new double[_timeline.Count];
+                for (int frameIndex = 0; frameIndex < _timeline.Count; frameIndex++)
+                {
+                    _chartSeries[frameIndex] = ComputeAverage(_timeline[frameIndex].ToArray());
+                }
+
+                return;
+            }
+
+            if (_timeline1D != null && _timeline1D.Count > 1)
+            {
+                _chartSeries = new double[_timeline1D.Count];
+                for (int frameIndex = 0; frameIndex < _timeline1D.Count; frameIndex++)
+                {
+                    _chartSeries[frameIndex] = Compute1DChartMetric(_timeline1D[frameIndex]);
+                }
+
+                return;
+            }
+
+            _chartSeries = null;
         }
 
         private void RenderGradientVectorOverlay(double[,] field, bool invertDirection)
@@ -678,15 +680,8 @@ namespace EngineeringToolbox.Demo
                 double dx = field[right, y] - field[left, y];
                 double dy = field[x, up] - field[x, down];
 
-                if (right != left)
-                {
-                    dx /= (right - left);
-                }
-
-                if (up != down)
-                {
-                    dy /= (up - down);
-                }
+                if (right != left) dx /= (right - left);
+                if (up != down) dy /= (up - down);
 
                 vx[x, y] = dx * directionScale;
                 vy[x, y] = dy * directionScale;
@@ -722,7 +717,6 @@ namespace EngineeringToolbox.Demo
         {
             if (values == null) return;
 
-            // For 1D data, repeat the profile vertically so it reads cleanly on the slice.
             int n = values.Length;
             const int bands = 24;
             var field = new double[n, bands];
@@ -735,16 +729,287 @@ namespace EngineeringToolbox.Demo
             _volumeView.SetTexture(tex);
         }
 
-        // ══════════════════════════════════════════════════════════
-        // UI helpers
-        // ══════════════════════════════════════════════════════════
+        private double Compute1DChartMetric(double[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return 0.0;
+            }
+
+            double averageVelocity = ComputeAverage(values);
+            if (config.module == PhysicsModule.PipeFlow)
+            {
+                return averageVelocity * System.Math.PI * config.radius * config.radius;
+            }
+
+            return averageVelocity;
+        }
+
+        private static double ComputeAverage(double[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return 0.0;
+            }
+
+            double sum = 0.0;
+            for (int index = 0; index < values.Length; index++)
+            {
+                sum += values[index];
+            }
+
+            return sum / values.Length;
+        }
+
+        private static double ComputeAverage(double[,] field)
+        {
+            if (field == null)
+            {
+                return 0.0;
+            }
+
+            int width = field.GetLength(0);
+            int height = field.GetLength(1);
+            if (width == 0 || height == 0)
+            {
+                return 0.0;
+            }
+
+            double sum = 0.0;
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                sum += field[x, y];
+            }
+
+            return sum / (width * height);
+        }
+
+        private void UpdateChart()
+        {
+            if (_chartPanel == null || _chartTitleText == null || _chartImage == null || _chartFooterText == null)
+            {
+                return;
+            }
+
+            _chartTitleText.text = GetChartTitle();
+
+            if (!HasChartData())
+            {
+                _chartImage.texture = null;
+                _chartImage.color = new Color(0f, 0f, 0f, 0f);
+                _chartFooterText.text = "No timeline chart available for the current module.";
+                if (_chartOverlayOpen)
+                {
+                    SetChartOverlayOpen(false);
+                }
+                return;
+            }
+
+            _chartImage.color = Color.white;
+            int highlightIndex = Mathf.Clamp(_currentFrame, 0, _chartSeries.Length - 1);
+            _chartImage.texture = RenderChartTexture(_chartSeries, highlightIndex);
+
+            double currentValue = _chartSeries[highlightIndex];
+            double endTime = (_chartSeries.Length - 1) * config.dt;
+            _chartFooterText.text = $"0-{FormatNumericValue(endTime)} s  |  current {FormatNumericValue(currentValue)} {GetChartUnit()}";
+        }
+
+        private bool HasChartData()
+        {
+            return _chartSeries != null && _chartSeries.Length >= 2;
+        }
+
+        private void ToggleChartOverlay()
+        {
+            if (!HasChartData())
+            {
+                return;
+            }
+
+            SetChartOverlayOpen(!_chartOverlayOpen);
+        }
+
+        private void SetChartOverlayOpen(bool isOpen)
+        {
+            _chartOverlayOpen = isOpen && HasChartData();
+            if (_chartOverlay != null)
+            {
+                _chartOverlay.gameObject.SetActive(_chartOverlayOpen);
+            }
+        }
+
+        private void ScrubChart(BaseEventData eventData)
+        {
+            if (!HasChartData() || _chartImage == null)
+            {
+                return;
+            }
+
+            var pointerEventData = eventData as PointerEventData;
+            if (pointerEventData == null)
+            {
+                return;
+            }
+
+            RectTransform chartRect = _chartImage.rectTransform;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    chartRect,
+                    pointerEventData.position,
+                    pointerEventData.pressEventCamera,
+                    out Vector2 localPoint))
+            {
+                return;
+            }
+
+            Rect rect = chartRect.rect;
+            float normalizedX = Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
+            int targetFrame = Mathf.Clamp(Mathf.RoundToInt(normalizedX * (_chartSeries.Length - 1)), 0, _chartSeries.Length - 1);
+
+            _currentFrame = targetFrame;
+            if (CanPlayCurrentModule())
+            {
+                _playing = false;
+            }
+
+            UpdateVisualization();
+        }
+
+        private Texture2D RenderChartTexture(double[] series, int highlightedIndex)
+        {
+            const int width = 360;
+            const int height = 170;
+            const int leftPadding = 18;
+            const int rightPadding = 10;
+            const int topPadding = 10;
+            const int bottomPadding = 18;
+
+            if (_chartTexture == null || _chartTexture.width != width || _chartTexture.height != height)
+            {
+                _chartTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                _chartTexture.wrapMode = TextureWrapMode.Clamp;
+                _chartTexture.filterMode = FilterMode.Bilinear;
+            }
+
+            Color background = new Color(0.05f, 0.10f, 0.16f, 0.96f);
+            Color gridColor = new Color(0.22f, 0.34f, 0.42f, 1f);
+            Color lineColor = new Color(0.92f, 0.74f, 0.26f, 1f);
+            Color markerColor = new Color(0.20f, 0.90f, 1.0f, 1f);
+
+            FillTexture(_chartTexture, background);
+
+            int plotMinX = leftPadding;
+            int plotMaxX = width - rightPadding - 1;
+            int plotMinY = bottomPadding;
+            int plotMaxY = height - topPadding - 1;
+
+            DrawLine(_chartTexture, plotMinX, plotMinY, plotMaxX, plotMinY, gridColor, 1);
+            DrawLine(_chartTexture, plotMinX, plotMinY, plotMinX, plotMaxY, gridColor, 1);
+
+            for (int guide = 1; guide <= 3; guide++)
+            {
+                int y = Mathf.RoundToInt(Mathf.Lerp(plotMinY, plotMaxY, guide / 4f));
+                DrawLine(_chartTexture, plotMinX, y, plotMaxX, y, new Color(gridColor.r, gridColor.g, gridColor.b, 0.65f), 1);
+            }
+
+            double minValue = double.MaxValue;
+            double maxValue = double.MinValue;
+            for (int index = 0; index < series.Length; index++)
+            {
+                minValue = System.Math.Min(minValue, series[index]);
+                maxValue = System.Math.Max(maxValue, series[index]);
+            }
+
+            if (System.Math.Abs(maxValue - minValue) < 1e-9)
+            {
+                maxValue += 1.0;
+                minValue -= 1.0;
+            }
+
+            int previousX = plotMinX;
+            int previousY = plotMinY;
+            for (int index = 0; index < series.Length; index++)
+            {
+                float xT = series.Length == 1 ? 0f : index / (float)(series.Length - 1);
+                float normalizedValue = Mathf.InverseLerp((float)minValue, (float)maxValue, (float)series[index]);
+                int x = Mathf.RoundToInt(Mathf.Lerp(plotMinX, plotMaxX, xT));
+                int y = Mathf.RoundToInt(Mathf.Lerp(plotMinY, plotMaxY, normalizedValue));
+
+                if (index > 0)
+                {
+                    DrawLine(_chartTexture, previousX, previousY, x, y, lineColor, 2);
+                }
+
+                previousX = x;
+                previousY = y;
+            }
+
+            highlightedIndex = Mathf.Clamp(highlightedIndex, 0, series.Length - 1);
+            float highlightedXT = series.Length == 1 ? 0f : highlightedIndex / (float)(series.Length - 1);
+            float highlightedYT = Mathf.InverseLerp((float)minValue, (float)maxValue, (float)series[highlightedIndex]);
+            int highlightX = Mathf.RoundToInt(Mathf.Lerp(plotMinX, plotMaxX, highlightedXT));
+            int highlightY = Mathf.RoundToInt(Mathf.Lerp(plotMinY, plotMaxY, highlightedYT));
+            DrawCircle(_chartTexture, highlightX, highlightY, 4, markerColor);
+            _chartTexture.Apply(false);
+            return _chartTexture;
+        }
+
+        private static void FillTexture(Texture2D texture, Color color)
+        {
+            Color[] pixels = texture.GetPixels();
+            for (int index = 0; index < pixels.Length; index++)
+            {
+                pixels[index] = color;
+            }
+
+            texture.SetPixels(pixels);
+        }
+
+        private static void DrawLine(Texture2D texture, int x0, int y0, int x1, int y1, Color color, int thickness)
+        {
+            int steps = Mathf.Max(Mathf.Abs(x1 - x0), Mathf.Abs(y1 - y0));
+            if (steps == 0)
+            {
+                DrawCircle(texture, x0, y0, thickness, color);
+                return;
+            }
+
+            for (int step = 0; step <= steps; step++)
+            {
+                float t = step / (float)steps;
+                int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
+                int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
+                DrawCircle(texture, x, y, thickness, color);
+            }
+        }
+
+        private static void DrawCircle(Texture2D texture, int centerX, int centerY, int radius, Color color)
+        {
+            int radiusSquared = radius * radius;
+            for (int dx = -radius; dx <= radius; dx++)
+            for (int dy = -radius; dy <= radius; dy++)
+            {
+                if (dx * dx + dy * dy > radiusSquared)
+                {
+                    continue;
+                }
+
+                int pixelX = centerX + dx;
+                int pixelY = centerY + dy;
+                if (pixelX < 0 || pixelX >= texture.width || pixelY < 0 || pixelY >= texture.height)
+                {
+                    continue;
+                }
+
+                texture.SetPixel(pixelX, pixelY, color);
+            }
+        }
 
         private void UpdateInfoText()
         {
             if (_result == null) return;
 
             string valueUnit = GetLegendUnit();
-
             string info = $"<b>{config.module}</b>  |  Material: {config.GetMaterial().Name}\n";
             info += $"Max: {FormatValueWithUnit(_result.MaxValue, valueUnit)}  Min: {FormatValueWithUnit(_result.MinValue, valueUnit)}";
 
@@ -755,7 +1020,7 @@ namespace EngineeringToolbox.Demo
                 info += "  |  3D slice view";
 
             Vector3 volumeRotation = _volumeView != null ? _volumeView.RotationEuler : Vector3.zero;
-            info += $"\nRotation: X {volumeRotation.x:F1}°  Y {volumeRotation.y:F1}°  Z {volumeRotation.z:F1}°";
+            info += $"\nRotation: X {volumeRotation.x:F1} deg  Y {volumeRotation.y:F1} deg  Z {volumeRotation.z:F1} deg";
 
             if (config.module == PhysicsModule.BeamStress)
                 info += $"\nSupport: {config.beamSupport}  Load: {config.pointLoadValue:F0} N";
@@ -765,8 +1030,6 @@ namespace EngineeringToolbox.Demo
                 info += $"\nVector overlay: {(_showVectors ? (_playing ? "Electric field live" : "Electric field") : "Off")}";
             else if (config.module == PhysicsModule.HeatTransfer)
                 info += $"\nVector overlay: {(_showVectors ? "Heat flow" : "Off")}";
-            else if (config.module == PhysicsModule.PipeFlow)
-                info += $"\nPlayback: {(_playing ? "Transient profile" : "Paused profile")}";
 
             if (_activeMoveAxis != VolumeMoveAxis.None)
                 info += $"\nRotating axis: {_activeMoveAxis}";
@@ -780,10 +1043,6 @@ namespace EngineeringToolbox.Demo
             string status = $"Inspector updates rerun automatically  |  Space: {playbackLabel}  |  Drag XYZ: rotate cube  |  C: reset view  |  F12: screenshot";
             _statusText.text = status;
         }
-
-        // ══════════════════════════════════════════════════════════
-        // Bootstrap (zero-setup)
-        // ══════════════════════════════════════════════════════════
 
         private void EnsureCamera()
         {
@@ -827,7 +1086,6 @@ namespace EngineeringToolbox.Demo
             }
 
             var lightingRoot = new GameObject("EngineeringToolbox_Lighting");
-
             CreateDirectionalLight(lightingRoot.transform, "KeyLight", new Vector3(42f, -28f, 0f), new Color(0.95f, 0.97f, 1f), 1.2f);
             CreateDirectionalLight(lightingRoot.transform, "FillLight", new Vector3(18f, 145f, 0f), new Color(0.42f, 0.63f, 0.95f), 0.45f);
 
@@ -850,16 +1108,12 @@ namespace EngineeringToolbox.Demo
             canvasGo.AddComponent<GraphicRaycaster>();
             EnsureEventSystem();
 
-            var topPanel = CreatePanel(canvasGo.transform, "TopPanel",
-                new Vector2(0.02f, 0.82f), new Vector2(0.31f, 0.97f), new Color(0.03f, 0.08f, 0.12f, 0.78f));
-            var bottomPanel = CreatePanel(canvasGo.transform, "BottomPanel",
-                new Vector2(0.14f, 0.015f), new Vector2(0.86f, 0.105f), new Color(0.03f, 0.08f, 0.12f, 0.8f));
-            var titlePanel = CreatePanel(canvasGo.transform, "TitlePanel",
-                new Vector2(0.70f, 0.88f), new Vector2(0.97f, 0.96f), new Color(0.05f, 0.16f, 0.24f, 0.66f));
-            var legendPanel = CreatePanel(canvasGo.transform, "LegendPanel",
-                new Vector2(0.90f, 0.20f), new Vector2(0.975f, 0.56f), new Color(0.03f, 0.08f, 0.12f, 0.74f));
-            var materialPanel = CreatePanel(canvasGo.transform, "MaterialPanel",
-                new Vector2(0.79f, 0.77f), new Vector2(0.975f, 0.84f), new Color(0.03f, 0.08f, 0.12f, 0.72f));
+            var topPanel = CreatePanel(canvasGo.transform, "TopPanel", new Vector2(0.02f, 0.82f), new Vector2(0.31f, 0.97f), new Color(0.03f, 0.08f, 0.12f, 0.78f));
+            var bottomPanel = CreatePanel(canvasGo.transform, "BottomPanel", new Vector2(0.14f, 0.015f), new Vector2(0.86f, 0.105f), new Color(0.03f, 0.08f, 0.12f, 0.8f));
+            var titlePanel = CreatePanel(canvasGo.transform, "TitlePanel", new Vector2(0.70f, 0.88f), new Vector2(0.97f, 0.96f), new Color(0.05f, 0.16f, 0.24f, 0.66f));
+            var legendPanel = CreatePanel(canvasGo.transform, "LegendPanel", new Vector2(0.90f, 0.20f), new Vector2(0.975f, 0.56f), new Color(0.03f, 0.08f, 0.12f, 0.74f));
+            var materialPanel = CreatePanel(canvasGo.transform, "MaterialPanel", new Vector2(0.79f, 0.77f), new Vector2(0.975f, 0.84f), new Color(0.03f, 0.08f, 0.12f, 0.72f));
+            CreateChartOverlay(canvasGo.transform);
 
             _infoText = CreateText(topPanel, "InfoText", 16, TextAnchor.UpperLeft);
             _statusText = CreateText(bottomPanel, "StatusBar", 13, TextAnchor.MiddleLeft);
@@ -891,20 +1145,15 @@ namespace EngineeringToolbox.Demo
                 float xMin = moduleStart + i * (moduleWidth + moduleGap);
                 float xMax = xMin + moduleWidth;
                 var module = ModuleOrder[i];
-                _moduleButtons[i] = CreateButton(parent, $"ModuleButton_{module}", moduleLabels[i],
-                    new Vector2(xMin, 0.44f), new Vector2(xMax, 0.88f), () => SelectModule(module), out _moduleButtonTexts[i]);
+                _moduleButtons[i] = CreateButton(parent, $"ModuleButton_{module}", moduleLabels[i], new Vector2(xMin, 0.44f), new Vector2(xMax, 0.88f), () => SelectModule(module), out _moduleButtonTexts[i]);
             }
 
-            _playPauseButton = CreateButton(parent, "PlayPauseButton", "Play",
-                new Vector2(0.50f, 0.44f), new Vector2(0.59f, 0.88f), TogglePlayback, out _playPauseButtonText);
-            _previousFrameButton = CreateButton(parent, "PrevFrameButton", "Prev",
-                new Vector2(0.605f, 0.44f), new Vector2(0.685f, 0.88f), () => StepFromButton(-1), out _);
-            _nextFrameButton = CreateButton(parent, "NextFrameButton", "Next",
-                new Vector2(0.70f, 0.44f), new Vector2(0.78f, 0.88f), () => StepFromButton(1), out _);
-            _vectorToggleButton = CreateButton(parent, "VectorToggleButton", "Vectors",
-                new Vector2(0.795f, 0.44f), new Vector2(0.89f, 0.88f), ToggleVectors, out _vectorToggleButtonText);
-            _materialButton = CreateButton(parent, "MaterialButton", "Material",
-                new Vector2(0.905f, 0.44f), new Vector2(0.985f, 0.88f), CycleMaterialFromButton, out _);
+            _playPauseButton = CreateButton(parent, "PlayPauseButton", "Play", new Vector2(0.50f, 0.44f), new Vector2(0.58f, 0.88f), TogglePlayback, out _playPauseButtonText);
+            _previousFrameButton = CreateButton(parent, "PrevFrameButton", "Prev", new Vector2(0.595f, 0.44f), new Vector2(0.665f, 0.88f), () => StepFromButton(-1), out _);
+            _nextFrameButton = CreateButton(parent, "NextFrameButton", "Next", new Vector2(0.68f, 0.44f), new Vector2(0.75f, 0.88f), () => StepFromButton(1), out _);
+            _vectorToggleButton = CreateButton(parent, "VectorToggleButton", "Vectors", new Vector2(0.765f, 0.44f), new Vector2(0.855f, 0.88f), ToggleVectors, out _vectorToggleButtonText);
+            _chartToggleButton = CreateButton(parent, "ChartToggleButton", "Chart", new Vector2(0.87f, 0.44f), new Vector2(0.925f, 0.88f), ToggleChartOverlay, out _chartToggleButtonText);
+            _materialButton = CreateButton(parent, "MaterialButton", "Material", new Vector2(0.935f, 0.44f), new Vector2(0.985f, 0.88f), CycleMaterialFromButton, out _);
         }
 
         private RectTransform CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Color color)
@@ -954,6 +1203,52 @@ namespace EngineeringToolbox.Demo
             _legendBottomValueText.rectTransform.offsetMax = new Vector2(-6f, 0f);
         }
 
+        private void CreateChartOverlay(Transform parent)
+        {
+            _chartOverlay = CreatePanel(parent, "ChartOverlay", new Vector2(0f, 0f), new Vector2(1f, 1f), new Color(0.02f, 0.05f, 0.08f, 0.88f));
+            _chartOverlay.gameObject.SetActive(false);
+            _chartPanel = CreatePanel(_chartOverlay, "ChartPanel", new Vector2(0.12f, 0.14f), new Vector2(0.88f, 0.86f), new Color(0.04f, 0.09f, 0.14f, 0.96f));
+            CreateChartUI(_chartPanel);
+
+            Button closeButton = CreateButton(_chartPanel, "ChartCloseButton", "Close", new Vector2(0.84f, 0.90f), new Vector2(0.96f, 0.97f), () => SetChartOverlayOpen(false), out _);
+            Image closeImage = closeButton.GetComponent<Image>();
+            if (closeImage != null)
+            {
+                closeImage.color = new Color(0.14f, 0.30f, 0.38f, 0.96f);
+            }
+        }
+
+        private void CreateChartUI(RectTransform parent)
+        {
+            _chartTitleText = CreateText(parent, "ChartTitle", 14, TextAnchor.UpperLeft);
+            _chartTitleText.rectTransform.anchorMin = new Vector2(0f, 0.86f);
+            _chartTitleText.rectTransform.anchorMax = new Vector2(1f, 1f);
+            _chartTitleText.rectTransform.offsetMin = new Vector2(12f, 0f);
+            _chartTitleText.rectTransform.offsetMax = new Vector2(-120f, -8f);
+            _chartTitleText.color = new Color(0.85f, 0.95f, 1f);
+            _chartTitleText.text = "Time Series";
+
+            var chartImageObject = new GameObject("ChartImage");
+            chartImageObject.transform.SetParent(parent, false);
+            _chartImage = chartImageObject.AddComponent<RawImage>();
+            _chartImage.color = Color.white;
+            EventTrigger chartTrigger = chartImageObject.AddComponent<EventTrigger>();
+            AddEventTrigger(chartTrigger, EventTriggerType.PointerClick, ScrubChart);
+            var chartRect = _chartImage.rectTransform;
+            chartRect.anchorMin = new Vector2(0.04f, 0.15f);
+            chartRect.anchorMax = new Vector2(0.96f, 0.82f);
+            chartRect.offsetMin = Vector2.zero;
+            chartRect.offsetMax = Vector2.zero;
+
+            _chartFooterText = CreateText(parent, "ChartFooter", 11, TextAnchor.LowerLeft);
+            _chartFooterText.rectTransform.anchorMin = new Vector2(0f, 0f);
+            _chartFooterText.rectTransform.anchorMax = new Vector2(1f, 0.14f);
+            _chartFooterText.rectTransform.offsetMin = new Vector2(12f, 0f);
+            _chartFooterText.rectTransform.offsetMax = new Vector2(-12f, -6f);
+            _chartFooterText.color = new Color(0.74f, 0.84f, 0.92f);
+            _chartFooterText.text = "Waiting for simulation data";
+        }
+
         private void CreateMaterialSwatchUI(RectTransform parent)
         {
             var swatchObject = new GameObject("MaterialSwatch");
@@ -981,17 +1276,14 @@ namespace EngineeringToolbox.Demo
             }
 
             _legendImage.texture = _heatmapRenderer.RenderLegend(32, 256);
-
             if (_legendTitleText != null)
             {
                 _legendTitleText.text = string.IsNullOrWhiteSpace(unit) ? title : $"{title} ({unit})";
             }
-
             if (_legendTopValueText != null)
             {
                 _legendTopValueText.text = FormatDisplayValue(maxValue);
             }
-
             if (_legendBottomValueText != null)
             {
                 _legendBottomValueText.text = FormatDisplayValue(minValue);
@@ -1014,16 +1306,35 @@ namespace EngineeringToolbox.Demo
         {
             switch (config.module)
             {
-                case PhysicsModule.HeatTransfer:
-                    return "Temperature";
-                case PhysicsModule.Electrostatics:
-                    return "Potential";
-                case PhysicsModule.PipeFlow:
-                    return "Velocity";
-                case PhysicsModule.BeamStress:
-                    return "Deflection";
-                default:
-                    return "Value";
+                case PhysicsModule.HeatTransfer: return "Temperature";
+                case PhysicsModule.Electrostatics: return "Potential";
+                case PhysicsModule.PipeFlow: return "Velocity";
+                case PhysicsModule.BeamStress: return "Deflection";
+                default: return "Value";
+            }
+        }
+
+        private string GetChartTitle()
+        {
+            switch (config.module)
+            {
+                case PhysicsModule.HeatTransfer: return "Average Temperature vs Time";
+                case PhysicsModule.Electrostatics: return "Average Potential vs Time";
+                case PhysicsModule.PipeFlow: return "Flow Rate vs Time";
+                case PhysicsModule.BeamStress: return "Deflection vs Time";
+                default: return "Time Series";
+            }
+        }
+
+        private string GetChartUnit()
+        {
+            switch (config.module)
+            {
+                case PhysicsModule.HeatTransfer: return "deg C";
+                case PhysicsModule.Electrostatics: return "V";
+                case PhysicsModule.PipeFlow: return "m^3/s";
+                case PhysicsModule.BeamStress: return "mm";
+                default: return string.Empty;
             }
         }
 
@@ -1031,24 +1342,17 @@ namespace EngineeringToolbox.Demo
         {
             switch (config.module)
             {
-                case PhysicsModule.HeatTransfer:
-                    return "deg C";
-                case PhysicsModule.Electrostatics:
-                    return "V";
-                case PhysicsModule.PipeFlow:
-                    return "m/s";
-                case PhysicsModule.BeamStress:
-                    return "mm";
-                default:
-                    return string.Empty;
+                case PhysicsModule.HeatTransfer: return "deg C";
+                case PhysicsModule.Electrostatics: return "V";
+                case PhysicsModule.PipeFlow: return "m/s";
+                case PhysicsModule.BeamStress: return "mm";
+                default: return string.Empty;
             }
         }
 
         private string FormatValueWithUnit(double value, string unit)
         {
-            return string.IsNullOrWhiteSpace(unit)
-                ? FormatDisplayValue(value)
-                : $"{FormatDisplayValue(value)} {unit}";
+            return string.IsNullOrWhiteSpace(unit) ? FormatDisplayValue(value) : $"{FormatDisplayValue(value)} {unit}";
         }
 
         private string FormatDisplayValue(double value)
@@ -1058,43 +1362,17 @@ namespace EngineeringToolbox.Demo
 
         private double ConvertDisplayValue(double value)
         {
-            if (config.module == PhysicsModule.BeamStress)
-            {
-                return value * 1000.0;
-            }
-
-            return value;
+            return config.module == PhysicsModule.BeamStress ? value * 1000.0 : value;
         }
 
         private static string FormatNumericValue(double value)
         {
             double absValue = System.Math.Abs(value);
-
-            if (absValue >= 100)
-            {
-                return value.ToString("F0");
-            }
-
-            if (absValue >= 10)
-            {
-                return value.ToString("F1");
-            }
-
-            if (absValue >= 1)
-            {
-                return value.ToString("F2");
-            }
-
-            if (absValue >= 0.01)
-            {
-                return value.ToString("F3");
-            }
-
-            if (absValue > 0)
-            {
-                return value.ToString("0.###E+0");
-            }
-
+            if (absValue >= 100) return value.ToString("F0");
+            if (absValue >= 10) return value.ToString("F1");
+            if (absValue >= 1) return value.ToString("F2");
+            if (absValue >= 0.01) return value.ToString("F3");
+            if (absValue > 0) return value.ToString("0.###E+0");
             return "0";
         }
 
@@ -1102,7 +1380,6 @@ namespace EngineeringToolbox.Demo
         {
             var buttonObject = new GameObject(name);
             buttonObject.transform.SetParent(parent, false);
-
             var image = buttonObject.AddComponent<Image>();
             image.color = new Color(0.12f, 0.22f, 0.3f, 0.94f);
 
@@ -1123,6 +1400,18 @@ namespace EngineeringToolbox.Demo
             labelText.rectTransform.offsetMax = Vector2.zero;
 
             return button;
+        }
+
+        private static void AddEventTrigger(EventTrigger trigger, EventTriggerType eventType, UnityEngine.Events.UnityAction<BaseEventData> callback)
+        {
+            if (trigger.triggers == null)
+            {
+                trigger.triggers = new List<EventTrigger.Entry>();
+            }
+
+            var entry = new EventTrigger.Entry { eventID = eventType };
+            entry.callback.AddListener(callback);
+            trigger.triggers.Add(entry);
         }
 
         private void TogglePlayback()
@@ -1191,10 +1480,16 @@ namespace EngineeringToolbox.Demo
                 _vectorToggleButtonText.text = vectorsAvailable ? (_showVectors ? "Vectors On" : "Vectors Off") : "No Vectors";
             }
 
+            if (_chartToggleButtonText != null)
+            {
+                _chartToggleButtonText.text = _chartOverlayOpen ? "Close" : "Chart";
+            }
+
             ApplyButtonVisualState(_playPauseButton, _playPauseButtonText, canPlay, _playing && canPlay);
             ApplyButtonVisualState(_previousFrameButton, null, hasFrames, false);
             ApplyButtonVisualState(_nextFrameButton, null, hasFrames, false);
             ApplyButtonVisualState(_vectorToggleButton, _vectorToggleButtonText, vectorsAvailable, _showVectors && vectorsAvailable);
+            ApplyButtonVisualState(_chartToggleButton, _chartToggleButtonText, HasChartData(), _chartOverlayOpen && HasChartData());
             ApplyButtonVisualState(_materialButton, null, true, false);
         }
 
@@ -1206,7 +1501,6 @@ namespace EngineeringToolbox.Demo
             }
 
             button.interactable = interactable;
-
             var image = button.GetComponent<Image>();
             if (image != null)
             {
@@ -1288,6 +1582,12 @@ namespace EngineeringToolbox.Demo
             if (_volumeView != null)
             {
                 _volumeView.SetSelectedAxis(VolumeMoveAxis.None);
+            }
+
+            if (_chartTexture != null)
+            {
+                Destroy(_chartTexture);
+                _chartTexture = null;
             }
         }
     }

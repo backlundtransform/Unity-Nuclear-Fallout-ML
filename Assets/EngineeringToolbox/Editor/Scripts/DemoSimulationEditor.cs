@@ -83,6 +83,13 @@ namespace EngineeringToolbox.Editor
         {
             serializedObject.Update();
 
+            if (_configProperty == null)
+            {
+                EditorGUILayout.HelpBox("Simulation config could not be found on this DemoSimulation instance.", MessageType.Error);
+                serializedObject.ApplyModifiedProperties();
+                return;
+            }
+
             DrawScriptField();
             DrawDemoSettings();
             EditorGUILayout.Space(8f);
@@ -116,9 +123,9 @@ namespace EngineeringToolbox.Editor
         private void DrawDemoSettings()
         {
             EditorGUILayout.LabelField("Demo Settings", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(_autoPlayProperty);
-            EditorGUILayout.PropertyField(_playIntervalProperty);
-            EditorGUILayout.PropertyField(_electrostaticVectorSpeedProperty);
+            DrawPropertyIfPresent(_autoPlayProperty);
+            DrawPropertyIfPresent(_playIntervalProperty);
+            DrawPropertyIfPresent(_electrostaticVectorSpeedProperty);
         }
 
         private void DrawModuleStatus()
@@ -181,51 +188,59 @@ namespace EngineeringToolbox.Editor
         private void DrawPipeFlowSettings()
         {
             EditorGUILayout.LabelField("Pipe Flow Parameters", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(_lengthProperty);
-            EditorGUILayout.PropertyField(_radiusProperty);
-            EditorGUILayout.PropertyField(_nodesProperty);
-            EditorGUILayout.PropertyField(_pressureGradientProperty);
+            DrawPropertyIfPresent(_lengthProperty);
+            DrawPropertyIfPresent(_radiusProperty);
+            DrawPropertyIfPresent(_nodesProperty);
+            DrawPropertyIfPresent(_pressureGradientProperty);
             DrawTimeStepping();
         }
 
         private void DrawBeamSettings()
         {
             EditorGUILayout.LabelField("Beam Parameters", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(_lengthProperty);
-            EditorGUILayout.PropertyField(_nodesProperty);
-            EditorGUILayout.PropertyField(_beamSupportProperty);
-            EditorGUILayout.PropertyField(_sectionWidthProperty);
-            EditorGUILayout.PropertyField(_sectionHeightProperty);
-            EditorGUILayout.PropertyField(_pointLoadValueProperty);
-            EditorGUILayout.PropertyField(_pointLoadPositionProperty);
-            EditorGUILayout.PropertyField(_distributedLoadProperty);
+            DrawPropertyIfPresent(_lengthProperty);
+            DrawPropertyIfPresent(_nodesProperty);
+            DrawPropertyIfPresent(_beamSupportProperty);
+            DrawPropertyIfPresent(_sectionWidthProperty);
+            DrawPropertyIfPresent(_sectionHeightProperty);
+            DrawPropertyIfPresent(_pointLoadValueProperty);
+            DrawPropertyIfPresent(_pointLoadPositionProperty);
+            DrawPropertyIfPresent(_distributedLoadProperty);
         }
 
         private void DrawGeometry2D()
         {
             EditorGUILayout.LabelField("Geometry", EditorStyles.miniBoldLabel);
-            EditorGUILayout.PropertyField(_widthProperty);
-            EditorGUILayout.PropertyField(_heightProperty);
-            EditorGUILayout.PropertyField(_nxProperty);
-            EditorGUILayout.PropertyField(_nyProperty);
+            DrawPropertyIfPresent(_widthProperty);
+            DrawPropertyIfPresent(_heightProperty);
+            DrawPropertyIfPresent(_nxProperty);
+            DrawPropertyIfPresent(_nyProperty);
         }
 
         private void DrawBoundaryConditions()
         {
             EditorGUILayout.Space(3f);
             EditorGUILayout.LabelField("Boundary Conditions", EditorStyles.miniBoldLabel);
-            EditorGUILayout.PropertyField(_topBoundaryProperty);
-            EditorGUILayout.PropertyField(_bottomBoundaryProperty);
-            EditorGUILayout.PropertyField(_leftBoundaryProperty);
-            EditorGUILayout.PropertyField(_rightBoundaryProperty);
+            DrawPropertyIfPresent(_topBoundaryProperty);
+            DrawPropertyIfPresent(_bottomBoundaryProperty);
+            DrawPropertyIfPresent(_leftBoundaryProperty);
+            DrawPropertyIfPresent(_rightBoundaryProperty);
         }
 
         private void DrawTimeStepping()
         {
             EditorGUILayout.Space(3f);
             EditorGUILayout.LabelField("Time Stepping", EditorStyles.miniBoldLabel);
-            EditorGUILayout.PropertyField(_dtProperty);
-            EditorGUILayout.PropertyField(_stepsProperty);
+            DrawPropertyIfPresent(_dtProperty);
+            DrawPropertyIfPresent(_stepsProperty);
+        }
+
+        private static void DrawPropertyIfPresent(SerializedProperty property)
+        {
+            if (property != null)
+            {
+                EditorGUILayout.PropertyField(property);
+            }
         }
 
         private void SyncSettingsViewToActiveModule()
