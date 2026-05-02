@@ -16,33 +16,38 @@ Unity asset for interactive physics demonstrations aimed at **students and teach
 | **Pipe Flow** | `MultiphysicsType.PipeFlow` — 1D Hagen-Poiseuille | ✅ Ready |
 | **Electrostatics** | `MultiphysicsType.ElectricField` — 2D Poisson | ✅ Ready |
 | **Beam Stress** | `MultiphysicsType.BeamStress` — 1D Euler-Bernoulli | ✅ Ready |
-| **2D Fluid Flow** (Navier-Stokes) | ⚠ Not in engine | ❌ Issue #1 |
-| **Magnetostatics** (B-field) | ⚠ Not in engine | ❌ Issue #2 |
-| **2D Structural** (plane stress) | ⚠ Not in engine | ❌ Issue #3 |
+| **2D Fluid Flow** (Navier-Stokes) | `MultiphysicsType.FluidFlow2D` — 2D Chorin projection | ✅ Ready |
+| **Cylinder Flow** | `MultiphysicsType.CylinderFlow` — 2D NS around cylinder | ✅ Ready |
+| **Magnetostatics** (B-field) | `MultiphysicsType.MagneticField` — 2D Poisson for A | ✅ Ready |
+| **2D Plane Stress** | `MultiphysicsType.PlaneStress` — 2D FD relaxation | ✅ Ready |
 
-## CSharpNumerics Issues (NOT developed in this repo)
+## CSharpNumerics Issues (resolved)
 
-These capabilities are **missing in CSharpNumerics** and must be added there before this asset can expose them. Each is logged as an issue below.
+All previously blocking issues have been implemented in CSharpNumerics and are now available.
 
-### Issue #1 — 2D Navier-Stokes Solver in Multiphysics Engine
+### ~~Issue #1 — 2D Navier-Stokes Solver in Multiphysics Engine~~ ✅ Resolved
 
-`Physics/FluidDynamics/NavierStokesExtensions.cs` exists but there is no `MultiphysicsType.FluidFlow2D` solver that wraps it into the SimulationBuilder pipeline. Needed: a 2D transient solver on `Grid2D` producing velocity fields (Vx, Vy) and pressure, with timeline snapshots and the same fluent API.
+`MultiphysicsType.FluidFlow2D` solver added — 2D transient Chorin projection method on `Grid2D` producing velocity fields (Vx, Vy), pressure, and timeline snapshots via the fluent SimulationBuilder API.
 
-### Issue #2 — Magnetostatics Solver in Multiphysics Engine
+### ~~Issue #2 — Magnetostatics Solver in Multiphysics Engine~~ ✅ Resolved
 
-`Physics/Electromagnetism/MagnetismExtensions.cs` and `MaxwellExtensions.cs` exist but there is no `MultiphysicsType.MagneticField` solver. Needed: 2D magnetostatics (∇²A = −μJ) producing vector potential A and magnetic field (Bx, By), with the same fluent API and material support. `EngineeringMaterial` also **lacks magnetic permeability (μ)** — this property must be added.
+`MultiphysicsType.MagneticField` solver added — 2D magnetostatics (∇²A = −μJ) producing vector potential A and magnetic field (Bx, By). `EngineeringMaterial` now includes `MagneticPermeability` property.
 
-### Issue #3 — 2D Plane Stress/Strain Solver in Multiphysics Engine
+### ~~Issue #3 — 2D Plane Stress/Strain Solver in Multiphysics Engine~~ ✅ Resolved
 
-`Physics/SolidMechanics/StressStrainExtensions.cs` exists but only 1D beam analysis is wrapped. Needed: a 2D FE or FD plane-stress solver producing displacement and stress tensor fields, usable through the SimulationBuilder.
+`MultiphysicsType.PlaneStress` solver added — 2D plane-stress elasticity using iterative Gauss-Seidel relaxation, producing displacement (Ux, Uy) and stress tensor fields (σxx, σyy, τxy).
 
-### Issue #4 — Extended Material Library
+### ~~Issue #4 — Extended Material Library~~ ✅ Resolved
 
-`EngineeringLibrary` only has 7 materials (Steel, Aluminum, Copper, Water, Air, Concrete, Glass). For educational use, add: Wood, Rubber, Titanium, Brass, Stainless Steel, Oil, Glycerin, Plastic/HDPE, and allow custom user-defined materials more easily.
+`EngineeringLibrary` now contains 15 materials: Steel, Aluminum, Copper, Titanium, Brass, Stainless Steel, Water, Air, Oil, Glycerin, Concrete, Glass, Wood, Rubber, Plastic (HDPE). All include magnetic permeability.
 
-### Issue #5 — VectorField Grid Evaluation
+### ~~Issue #5 — VectorField Grid Evaluation~~ ✅ Resolved
 
-`VectorField.EvaluateRange` only walks a diagonal line. Needed: a 2D grid evaluation method `EvaluateGrid2D(xmin, xmax, ymin, ymax, nx, ny)` returning a structured grid of vectors for proper arrow-plot rendering.
+`VectorField.EvaluateGrid2D(xmin, xmax, ymin, ymax, nx, ny)` added — returns a structured dictionary of position→vector pairs on a 2D grid for proper arrow-plot rendering.
+
+### Bonus: Cylinder Flow
+
+`MultiphysicsType.CylinderFlow` solver added — 2D incompressible Navier-Stokes around a circular cylinder with drag/lift coefficients and Strouhal number output.
 
 ---
 
@@ -117,13 +122,14 @@ Expose stochastic analysis for uncertainty-aware teaching.
 - [ ] Color-blind friendly palette option
 - [ ] README and documentation
 
-## Phase 7 — Future Modules (Blocked on CSharpNumerics Issues)
+## Phase 7 — Newly Unblocked Modules (Now Implemented)
 
-These phases become unblocked as CSharpNumerics adds the corresponding solvers.
+All previously blocked solvers are now available in CSharpNumerics.
 
-- [ ] **2D Fluid Flow** — velocity field heatmap + vector overlay (blocked on Issue #1)
-- [ ] **Magnetostatics** — magnetic field lines + potential heatmap (blocked on Issue #2)
-- [ ] **2D Structural** — stress/displacement fields with deformed mesh overlay (blocked on Issue #3)
+- [x] **2D Fluid Flow** — velocity magnitude heatmap + velocity vector overlay
+- [x] **Cylinder Flow** — vorticity heatmap + velocity vectors, drag/lift/Strouhal output
+- [x] **Magnetostatics** — vector potential heatmap + B-field vector overlay
+- [x] **2D Plane Stress** — stress σxx heatmap + displacement vector overlay
 - [ ] **Coupled simulations** — thermal-structural, electro-thermal (future CSharpNumerics feature)
 
 ---
@@ -143,7 +149,11 @@ EngineeringToolbox/
 │   │   ├── HeatTransferModule.cs
 │   │   ├── ElectrostaticsModule.cs
 │   │   ├── PipeFlowModule.cs
-│   │   └── BeamStressModule.cs
+│   │   ├── BeamStressModule.cs
+│   │   ├── FluidFlow2DModule.cs
+│   │   ├── CylinderFlowModule.cs
+│   │   ├── MagnetostaticsModule.cs
+│   │   └── PlaneStressModule.cs
 │   ├── Visualization/
 │   │   ├── HeatmapRenderer.cs          ← 2D scalar → Texture2D
 │   │   ├── VectorFieldOverlay.cs       ← arrow glyph layer
@@ -151,7 +161,7 @@ EngineeringToolbox/
 │   │   ├── ColorGradient.cs            ← LUT + legend
 │   │   └── ComparisonView.cs           ← side-by-side
 │   ├── UI/
-│   │   ├── MaterialPicker.cs           ← material dropdown + custom
+│   │   ├── MaterialPicker.cs           ← material dropdown + custom (15 presets)
 │   │   ├── TimelinePlayer.cs           ← play/pause/scrub
 │   │   ├── ParameterSlider.cs          ← MC parameter ranges
 │   │   └── InfoOverlay.cs              ← PDE + stats display
@@ -161,7 +171,7 @@ EngineeringToolbox/
 ├── Editor/Scripts/
 │   └── SimulationConfigEditor.cs       ← custom inspector
 └── Demo/Scripts/
-    └── DemoSimulation.cs               ← zero-setup, all modules
+    └── DemoSimulation.cs               ← zero-setup, all 8 modules
 ```
 
 ## Namespace Mapping (CSharpNumerics)

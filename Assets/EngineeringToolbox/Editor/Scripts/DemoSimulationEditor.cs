@@ -35,15 +35,30 @@ namespace EngineeringToolbox.Editor
         private SerializedProperty _pointLoadPositionProperty;
         private SerializedProperty _distributedLoadProperty;
         private SerializedProperty _pressureGradientProperty;
+        private SerializedProperty _inletVelocityProperty;
+        private SerializedProperty _cylinderCenterXProperty;
+        private SerializedProperty _cylinderCenterYProperty;
+        private SerializedProperty _cylinderRadiusProperty;
+        private SerializedProperty _currentDensityProperty;
+        private SerializedProperty _uniformLoadProperty;
 
-        private PhysicsModule _settingsView = PhysicsModule.HeatTransfer;
+        private PhysicsDiscipline _settingsDiscipline = PhysicsDiscipline.Thermodynamics;
+        private PhysicsModule _settingsModule = PhysicsModule.HeatTransfer;
+
+        private static readonly PhysicsDiscipline[] DisciplineOrder =
+        {
+            PhysicsDiscipline.Thermodynamics,
+            PhysicsDiscipline.SolidMechanics,
+            PhysicsDiscipline.Electromagnetism,
+            PhysicsDiscipline.FluidDynamics
+        };
 
         private static readonly string[] SettingsTabs =
         {
-            "Heat",
-            "Electro",
-            "Flow",
-            "Beam"
+            "Thermodynamics",
+            "Solid Mechanics",
+            "Electromagnetism",
+            "Fluid Dynamics"
         };
 
         private void OnEnable()
@@ -75,6 +90,12 @@ namespace EngineeringToolbox.Editor
             _pointLoadPositionProperty = FindConfigProperty("pointLoadPosition");
             _distributedLoadProperty = FindConfigProperty("distributedLoad");
             _pressureGradientProperty = FindConfigProperty("pressureGradient");
+            _inletVelocityProperty = FindConfigProperty("inletVelocity");
+            _cylinderCenterXProperty = FindConfigProperty("cylinderCenterX");
+            _cylinderCenterYProperty = FindConfigProperty("cylinderCenterY");
+            _cylinderRadiusProperty = FindConfigProperty("cylinderRadius");
+            _currentDensityProperty = FindConfigProperty("currentDensity");
+            _uniformLoadProperty = FindConfigProperty("uniformLoad");
 
             SyncSettingsViewToActiveModule();
         }
@@ -139,7 +160,8 @@ namespace EngineeringToolbox.Editor
 
             using (new EditorGUI.DisabledScope(true))
             {
-                EditorGUILayout.TextField("Active Module", GetEnumDisplayName(_moduleProperty));
+                EditorGUILayout.TextField("Active Module", PhysicsModuleCatalog.GetModuleLabel(_settingsModule));
+                EditorGUILayout.TextField("Active Category", PhysicsModuleCatalog.GetDisciplineLabel(_settingsDiscipline));
                 EditorGUILayout.TextField("Active Material", GetEnumDisplayName(_materialPresetProperty));
             }
         }
@@ -147,25 +169,53 @@ namespace EngineeringToolbox.Editor
         private void DrawSettingsFilter()
         {
             EditorGUILayout.LabelField("Settings View", EditorStyles.boldLabel);
-            int selectedIndex = GUILayout.Toolbar((int)_settingsView, SettingsTabs);
-            _settingsView = (PhysicsModule)selectedIndex;
+            int currentDisciplineIndex = GetDisciplineIndex(_settingsDiscipline);
+            int selectedDisciplineIndex = GUILayout.Toolbar(currentDisciplineIndex, SettingsTabs);
+            if (selectedDisciplineIndex != currentDisciplineIndex)
+            {
+                _settingsDiscipline = DisciplineOrder[selectedDisciplineIndex];
+                _settingsModule = PhysicsModuleCatalog.GetDefaultModule(_settingsDiscipline);
+            }
+
+            PhysicsModule[] modules = PhysicsModuleCatalog.GetModules(_settingsDiscipline);
+            string[] moduleLabels = new string[modules.Length];
+            for (int index = 0; index < modules.Length; index++)
+            {
+                moduleLabels[index] = PhysicsModuleCatalog.GetModuleLabel(modules[index]);
+            }
+
+            int currentModuleIndex = PhysicsModuleCatalog.GetModuleIndexInDiscipline(_settingsModule);
+            int selectedModuleIndex = EditorGUILayout.Popup("Submodel", currentModuleIndex, moduleLabels);
+            _settingsModule = modules[selectedModuleIndex];
         }
 
         private void DrawFilteredConfiguration()
         {
-            switch (_settingsView)
+            switch (_settingsModule)
             {
                 case PhysicsModule.HeatTransfer:
                     DrawHeatSettings();
                     break;
+                case PhysicsModule.BeamStress:
+                    DrawBeamSettings();
+                    break;
+                case PhysicsModule.PlaneStress:
+                    DrawPlaneStressSettings();
+                    break;
                 case PhysicsModule.Electrostatics:
                     DrawElectrostaticSettings();
+                    break;
+                case PhysicsModule.Magnetostatics:
+                    DrawMagnetostaticsSettings();
                     break;
                 case PhysicsModule.PipeFlow:
                     DrawPipeFlowSettings();
                     break;
-                case PhysicsModule.BeamStress:
-                    DrawBeamSettings();
+                case PhysicsModule.FluidFlow2D:
+                    DrawFluidFlow2DSettings();
+                    break;
+                case PhysicsModule.CylinderFlow:
+                    DrawCylinderFlowSettings();
                     break;
             }
         }
@@ -206,6 +256,42 @@ namespace EngineeringToolbox.Editor
             DrawPropertyIfPresent(_pointLoadValueProperty);
             DrawPropertyIfPresent(_pointLoadPositionProperty);
             DrawPropertyIfPresent(_distributedLoadProperty);
+        }
+
+        private void DrawPlaneStressSettings()
+        {
+            EditorGUILayout.LabelField("Plane Stress Parameters", EditorStyles.boldLabel);
+            DrawGeometry2D();
+            DrawBoundaryConditions();
+            DrawPropertyIfPresent(_pointLoadValueProperty);
+            DrawPropertyIfPresent(_uniformLoadProperty);
+        }
+
+        private void DrawMagnetostaticsSettings()
+        {
+            EditorGUILayout.LabelField("Magnetostatics Parameters", EditorStyles.boldLabel);
+            DrawGeometry2D();
+            DrawBoundaryConditions();
+            DrawPropertyIfPresent(_currentDensityProperty);
+        }
+
+        private void DrawFluidFlow2DSettings()
+        {
+            EditorGUILayout.LabelField("2D Fluid Flow Parameters", EditorStyles.boldLabel);
+            DrawGeometry2D();
+            DrawPropertyIfPresent(_inletVelocityProperty);
+            DrawTimeStepping();
+        }
+
+        private void DrawCylinderFlowSettings()
+        {
+            EditorGUILayout.LabelField("Cylinder Flow Parameters", EditorStyles.boldLabel);
+            DrawGeometry2D();
+            DrawPropertyIfPresent(_inletVelocityProperty);
+            DrawPropertyIfPresent(_cylinderCenterXProperty);
+            DrawPropertyIfPresent(_cylinderCenterYProperty);
+            DrawPropertyIfPresent(_cylinderRadiusProperty);
+            DrawTimeStepping();
         }
 
         private void DrawGeometry2D()
@@ -250,10 +336,21 @@ namespace EngineeringToolbox.Editor
                 return;
             }
 
-            if (Application.isPlaying)
+            _settingsModule = (PhysicsModule)_moduleProperty.enumValueIndex;
+            _settingsDiscipline = PhysicsModuleCatalog.GetDiscipline(_settingsModule);
+        }
+
+        private static int GetDisciplineIndex(PhysicsDiscipline discipline)
+        {
+            for (int index = 0; index < DisciplineOrder.Length; index++)
             {
-                _settingsView = (PhysicsModule)_moduleProperty.enumValueIndex;
+                if (DisciplineOrder[index] == discipline)
+                {
+                    return index;
+                }
             }
+
+            return 0;
         }
 
         private static string GetEnumDisplayName(SerializedProperty property)

@@ -80,12 +80,50 @@ namespace EngineeringToolbox.Visualization
             Resize(w, h);
 
             double range = max - min;
-            if (range < 1e-12) range = 1.0;
+            if (!double.IsFinite(min) || !double.IsFinite(max) || !double.IsFinite(range) || range < 1e-12)
+            {
+                min = 0.0;
+                max = 1.0;
+                range = 1.0;
+            }
 
             for (int x = 0; x < w; x++)
             for (int y = 0; y < h; y++)
             {
-                float t = (float)((field[x, y] - min) / range);
+                double value = field[x, y];
+                float t = double.IsFinite(value) ? (float)((value - min) / range) : 0f;
+                _texture.SetPixel(x, y, EvaluateColor(t));
+            }
+
+            _texture.Apply();
+            return _texture;
+        }
+
+        public Texture2D Render(double[,] field, double min, double max, bool[,] mask, Color maskColor)
+        {
+            int w = field.GetLength(0);
+            int h = field.GetLength(1);
+            Resize(w, h);
+
+            double range = max - min;
+            if (!double.IsFinite(min) || !double.IsFinite(max) || !double.IsFinite(range) || range < 1e-12)
+            {
+                min = 0.0;
+                max = 1.0;
+                range = 1.0;
+            }
+
+            for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                if (mask != null && mask[x, y])
+                {
+                    _texture.SetPixel(x, y, maskColor);
+                    continue;
+                }
+
+                double value = field[x, y];
+                float t = double.IsFinite(value) ? (float)((value - min) / range) : 0f;
                 _texture.SetPixel(x, y, EvaluateColor(t));
             }
 
@@ -132,6 +170,11 @@ namespace EngineeringToolbox.Visualization
 
         private static Color SampleGradient(float t)
         {
+            if (float.IsNaN(t) || float.IsInfinity(t))
+            {
+                t = 0f;
+            }
+
             t = Mathf.Clamp01(t);
 
             if (EngineeringGradient.Length == 1)

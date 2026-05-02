@@ -98,10 +98,15 @@ namespace EngineeringToolbox.Visualization
 
         public void RenderWorld(Transform parent, Vector2 surfaceSize, double[,] ex, double[,] ey, int nx, int ny)
         {
-            RenderWorld(parent, surfaceSize, ex, ey, nx, ny, 0f);
+            RenderWorld(parent, surfaceSize, ex, ey, nx, ny, null, 0f);
         }
 
         public void RenderWorld(Transform parent, Vector2 surfaceSize, double[,] ex, double[,] ey, int nx, int ny, float phase)
+        {
+            RenderWorld(parent, surfaceSize, ex, ey, nx, ny, null, phase);
+        }
+
+        public void RenderWorld(Transform parent, Vector2 surfaceSize, double[,] ex, double[,] ey, int nx, int ny, bool[,] mask, float phase)
         {
             _ex = ex;
             _ey = ey;
@@ -120,6 +125,11 @@ namespace EngineeringToolbox.Visualization
             for (int x = 0; x < nx; x += _skipFactor)
             for (int y = 0; y < ny; y += _skipFactor)
             {
+                if (mask != null && mask[x, y])
+                {
+                    continue;
+                }
+
                 double magnitude = System.Math.Sqrt(ex[x, y] * ex[x, y] + ey[x, y] * ey[x, y]);
                 if (magnitude > maxMagnitude)
                 {
@@ -143,6 +153,12 @@ namespace EngineeringToolbox.Visualization
             for (int iy = 0; iy < ny; iy += effectiveSkip)
             {
                 var line = GetWorldLine(lineIndex++, parent);
+
+                if (mask != null && mask[ix, iy])
+                {
+                    line.gameObject.SetActive(false);
+                    continue;
+                }
 
                 float magnitude = (float)(System.Math.Sqrt(ex[ix, iy] * ex[ix, iy] + ey[ix, iy] * ey[ix, iy]) / maxMagnitude);
                 float deltaX = (float)(ex[ix, iy] / maxMagnitude) * arrowScale;

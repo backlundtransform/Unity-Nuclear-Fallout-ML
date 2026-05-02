@@ -15,19 +15,23 @@ namespace EngineeringToolbox.Demo
     /// Self-contained Engineering Toolbox demo.
     /// Attach to any empty GameObject, enter Play Mode, done.
     ///
-    /// Modules:
-    ///   1 = Heat Transfer (2D heatmap, animated)
-    ///   2 = Electrostatics (potential heatmap + E-field vectors)
-    ///   3 = Pipe Flow (1D velocity profile)
-    ///   4 = Beam Stress (deflection, moment, shear, stress)
+    /// Categories:
+    ///   1 = Thermodynamics
+    ///   2 = Solid Mechanics
+    ///   3 = Electromagnetism
+    ///   4 = Fluid Dynamics
+    ///
+    /// Submodel cycling:
+    ///   Q/E = previous / next submodel inside the active category
     ///
     /// Controls:
-    ///   1-4        select module
+    ///   1-4        select main category
+    ///   Q / E      cycle submodel
     ///   Space      play / pause timeline
     ///   Left/Right step backward / forward
     ///   R          re-run simulation
     ///   M          cycle material
-    ///   V          toggle vector overlay (electrostatics)
+    ///   V          toggle vector overlay
     ///   F12        screenshot
     /// </summary>
     public class DemoSimulation : MonoBehaviour
@@ -87,8 +91,10 @@ namespace EngineeringToolbox.Demo
         private Button _vectorToggleButton;
         private Text _vectorToggleButtonText;
         private Button _materialButton;
-        private Button[] _moduleButtons;
-        private Text[] _moduleButtonTexts;
+        private Button[] _disciplineButtons;
+        private Text[] _disciplineButtonTexts;
+        private Button[] _submoduleButtons;
+        private Text[] _submoduleButtonTexts;
         private HeatmapRenderer _heatmapRenderer;
         private VectorFieldOverlay _vectorOverlay;
         private SimulationVolumeView _volumeView;
@@ -101,18 +107,26 @@ namespace EngineeringToolbox.Demo
             MaterialPreset.Steel,
             MaterialPreset.Aluminum,
             MaterialPreset.Copper,
+            MaterialPreset.Titanium,
+            MaterialPreset.Brass,
+            MaterialPreset.StainlessSteel,
             MaterialPreset.Concrete,
             MaterialPreset.Glass,
+            MaterialPreset.Wood,
+            MaterialPreset.Rubber,
+            MaterialPreset.Plastic,
             MaterialPreset.Water,
-            MaterialPreset.Air
+            MaterialPreset.Air,
+            MaterialPreset.Oil,
+            MaterialPreset.Glycerin
         };
 
-        private static readonly PhysicsModule[] ModuleOrder =
+        private static readonly PhysicsDiscipline[] DisciplineOrder =
         {
-            PhysicsModule.HeatTransfer,
-            PhysicsModule.Electrostatics,
-            PhysicsModule.PipeFlow,
-            PhysicsModule.BeamStress
+            PhysicsDiscipline.Thermodynamics,
+            PhysicsDiscipline.SolidMechanics,
+            PhysicsDiscipline.Electromagnetism,
+            PhysicsDiscipline.FluidDynamics
         };
 
         private async void Start()
@@ -155,6 +169,12 @@ namespace EngineeringToolbox.Demo
             config.pointLoadPosition = 1f;
             config.distributedLoad = 400f;
             config.pressureGradient = -100f;
+            config.inletVelocity = 1f;
+            config.cylinderCenterX = 0.2f;
+            config.cylinderCenterY = 0.2f;
+            config.cylinderRadius = 0.05f;
+            config.currentDensity = 1e6f;
+            config.uniformLoad = 0f;
         }
 
         private void Update()
@@ -185,10 +205,12 @@ namespace EngineeringToolbox.Demo
 
         private void HandleInput()
         {
-            if (Input.GetKeyDown(KeyCode.Alpha1)) { SelectModule(PhysicsModule.HeatTransfer); }
-            if (Input.GetKeyDown(KeyCode.Alpha2)) { SelectModule(PhysicsModule.Electrostatics); }
-            if (Input.GetKeyDown(KeyCode.Alpha3)) { SelectModule(PhysicsModule.PipeFlow); }
-            if (Input.GetKeyDown(KeyCode.Alpha4)) { SelectModule(PhysicsModule.BeamStress); }
+            if (Input.GetKeyDown(KeyCode.Alpha1)) { SelectDiscipline(PhysicsDiscipline.Thermodynamics); }
+            if (Input.GetKeyDown(KeyCode.Alpha2)) { SelectDiscipline(PhysicsDiscipline.SolidMechanics); }
+            if (Input.GetKeyDown(KeyCode.Alpha3)) { SelectDiscipline(PhysicsDiscipline.Electromagnetism); }
+            if (Input.GetKeyDown(KeyCode.Alpha4)) { SelectDiscipline(PhysicsDiscipline.FluidDynamics); }
+            if (Input.GetKeyDown(KeyCode.Q)) { CycleSubmodule(-1); }
+            if (Input.GetKeyDown(KeyCode.E)) { CycleSubmodule(1); }
 
             if (Input.GetKeyDown(KeyCode.Space) && CanPlayCurrentModule())
             {
@@ -218,6 +240,21 @@ namespace EngineeringToolbox.Demo
             config.materialPreset = Materials[_materialIndex];
         }
 
+        private void SetMaterialPreset(MaterialPreset preset)
+        {
+            config.materialPreset = preset;
+            for (int index = 0; index < Materials.Length; index++)
+            {
+                if (Materials[index] == preset)
+                {
+                    _materialIndex = index;
+                    return;
+                }
+            }
+
+            _materialIndex = 0;
+        }
+
         private void SelectModule(PhysicsModule module)
         {
             config.module = module;
@@ -225,14 +262,62 @@ namespace EngineeringToolbox.Demo
             _ = RunSimulation();
         }
 
+        private void SelectDiscipline(PhysicsDiscipline discipline)
+        {
+            PhysicsDiscipline activeDiscipline = GetActiveDiscipline();
+            if (discipline == activeDiscipline)
+            {
+                return;
+            }
+
+            SelectModule(PhysicsModuleCatalog.GetDefaultModule(discipline));
+        }
+
+        private void CycleSubmodule(int delta)
+        {
+            PhysicsModule[] modules = GetActiveSubmodules();
+            if (modules.Length <= 1)
+            {
+                return;
+            }
+
+            int currentIndex = PhysicsModuleCatalog.GetModuleIndexInDiscipline(config.module);
+            int nextIndex = (currentIndex + delta) % modules.Length;
+            if (nextIndex < 0)
+            {
+                nextIndex += modules.Length;
+            }
+
+            SelectModule(modules[nextIndex]);
+        }
+
+        private PhysicsDiscipline GetActiveDiscipline()
+        {
+            return PhysicsModuleCatalog.GetDiscipline(config.module);
+        }
+
+        private PhysicsModule[] GetActiveSubmodules()
+        {
+            return PhysicsModuleCatalog.GetModules(GetActiveDiscipline());
+        }
+
         private static bool SupportsVectorOverlay(PhysicsModule module)
         {
-            return module == PhysicsModule.HeatTransfer || module == PhysicsModule.Electrostatics;
+            return module == PhysicsModule.HeatTransfer
+                || module == PhysicsModule.Electrostatics
+                || module == PhysicsModule.FluidFlow2D
+                || module == PhysicsModule.CylinderFlow
+                || module == PhysicsModule.Magnetostatics
+                || module == PhysicsModule.PlaneStress;
         }
 
         private static bool SupportsAnimatedPlayback(PhysicsModule module)
         {
-            return module == PhysicsModule.HeatTransfer || module == PhysicsModule.Electrostatics || module == PhysicsModule.PipeFlow;
+            return module == PhysicsModule.HeatTransfer
+                || module == PhysicsModule.Electrostatics
+                || module == PhysicsModule.PipeFlow
+                || module == PhysicsModule.FluidFlow2D
+                || module == PhysicsModule.CylinderFlow;
         }
 
         private void ApplyModuleDefaults(PhysicsModule module)
@@ -242,6 +327,39 @@ namespace EngineeringToolbox.Demo
             _playTimer = 0f;
             _currentFrame = 0;
             _lastObservedModule = module;
+
+            switch (module)
+            {
+                case PhysicsModule.CylinderFlow:
+                    config.width = 2.4f;
+                    config.height = 1.2f;
+                    config.nx = 120;
+                    config.ny = 60;
+                    config.dt = 0.01f;
+                    config.steps = 900;
+                    config.inletVelocity = 0.06f;
+                    config.cylinderCenterX = 0.55f;
+                    config.cylinderCenterY = 0.6f;
+                    config.cylinderRadius = 0.12f;
+                    SetMaterialPreset(MaterialPreset.Oil);
+                    break;
+                case PhysicsModule.FluidFlow2D:
+                    config.width = 1.6f;
+                    config.height = 0.9f;
+                    config.nx = 72;
+                    config.ny = 40;
+                    config.dt = 0.002f;
+                    config.steps = 240;
+                    config.inletVelocity = 0.03f;
+                    SetMaterialPreset(MaterialPreset.Oil);
+                    break;
+                case PhysicsModule.PipeFlow:
+                    SetMaterialPreset(MaterialPreset.Water);
+                    break;
+                case PhysicsModule.Magnetostatics:
+                    SetMaterialPreset(MaterialPreset.Steel);
+                    break;
+            }
         }
 
         private void DetectInspectorConfigChanges()
@@ -384,8 +502,11 @@ namespace EngineeringToolbox.Demo
             _infoText.text = $"Running {config.module}...";
             _globalMin = 0.0;
             _globalMax = 1.0;
+            _result = null;
+            _timeline = null;
             _timeline1D = null;
             _chartSeries = null;
+            _vectorOverlay.ClearWorld();
 
             var material = config.GetMaterial();
             SimulationResult result = null;
@@ -434,10 +555,48 @@ namespace EngineeringToolbox.Demo
                             beamBuilder = beamBuilder.WithSource(config.distributedLoad);
                         result = beamBuilder.Solve();
                         break;
+
+                    case PhysicsModule.FluidFlow2D:
+                        result = SimulationType.Create(MultiphysicsType.FluidFlow2D)
+                            .WithMaterial(material)
+                            .WithGeometry(config.width, config.height, config.nx, config.ny)
+                            .WithBoundary(top: 0, bottom: 0, left: config.inletVelocity, right: 0)
+                            .WithInitialCondition(0.0)
+                            .Solve(dt: config.dt, steps: config.steps, maxIterations: 900, tolerance: 1e-4);
+                        break;
+
+                    case PhysicsModule.CylinderFlow:
+                        result = SimulationType.Create(MultiphysicsType.CylinderFlow)
+                            .WithMaterial(material)
+                            .WithGeometry(config.width, config.height, config.nx, config.ny)
+                            .WithCylinder(config.cylinderCenterX, config.cylinderCenterY, config.cylinderRadius)
+                            .WithInletVelocity(config.inletVelocity)
+                            .Solve(dt: config.dt, steps: config.steps, maxIterations: 1500, tolerance: 1e-4);
+                        break;
+
+                    case PhysicsModule.Magnetostatics:
+                        var magBuilder = SimulationType.Create(MultiphysicsType.MagneticField)
+                            .WithMaterial(material)
+                            .WithGeometry(config.width, config.height, config.nx, config.ny)
+                            .WithBoundary(top: 0, bottom: 0, left: 0, right: 0);
+                        magBuilder = magBuilder.AddSource(config.nx / 2, config.ny / 2, config.currentDensity);
+                        result = magBuilder.Solve(maxIterations: 20000, tolerance: 1e-8);
+                        break;
+
+                    case PhysicsModule.PlaneStress:
+                        var stressBuilder = SimulationType.Create(MultiphysicsType.PlaneStress)
+                            .WithMaterial(material)
+                            .WithGeometry(config.width, config.height, config.nx, config.ny)
+                            .WithBoundary(top: config.topBC, bottom: config.bottomBC, left: 0, right: config.rightBC);
+                        stressBuilder = stressBuilder.AddSource(config.nx - 1, config.ny / 2, config.pointLoadValue);
+                        if (config.uniformLoad != 0)
+                            stressBuilder = stressBuilder.WithSource(config.uniformLoad);
+                        result = stressBuilder.Solve(maxIterations: 20000, tolerance: 1e-8);
+                        break;
                 }
             });
 
-            _result = result;
+            _result = SanitizeSimulationResult(result);
             _volumeView.ApplyMaterialTheme(material);
             _volumeView.ConfigureForModule(config.module);
             _volumeView.ConfigureGrid(config.module, config.nx, config.ny);
@@ -491,7 +650,8 @@ namespace EngineeringToolbox.Demo
 
             BuildChartSeries();
 
-            Debug.Log($"[EngineeringToolbox] {config.module} complete - material={material.Name}, max={_result?.MaxValue:F3}, min={_result?.MinValue:F3}, iterations={_result?.Iterations}, timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
+            var safeResultRange = GetSafeResultRange(_result);
+            Debug.Log($"[EngineeringToolbox] {config.module} complete - material={material.Name}, max={safeResultRange.max:F3}, min={safeResultRange.min:F3}, iterations={_result?.Iterations}, timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
 
             UpdateVisualization();
 
@@ -509,6 +669,8 @@ namespace EngineeringToolbox.Demo
         {
             if (_result == null) return;
 
+            var resultRange = GetSafeResultRange(_result);
+
             _activeVectorFieldX = null;
             _activeVectorFieldY = null;
 
@@ -517,6 +679,10 @@ namespace EngineeringToolbox.Demo
             string legendUnit = GetLegendUnit();
             _volumeView.ApplyMaterialTheme(currentMaterial);
             UpdateMaterialSwatch(currentMaterial);
+            if (_titleText != null)
+            {
+                _titleText.text = $"{PhysicsModuleCatalog.GetDisciplineLabel(GetActiveDiscipline())} | {PhysicsModuleCatalog.GetModuleLabel(config.module)}";
+            }
 
             switch (config.module)
             {
@@ -532,7 +698,7 @@ namespace EngineeringToolbox.Demo
                     {
                         heatField = _result.Field;
                         Render2DField(heatField);
-                        UpdateLegend(_result.MinValue, _result.MaxValue, legendTitle, legendUnit);
+                        UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
                     }
 
                     if (_showVectors)
@@ -547,7 +713,7 @@ namespace EngineeringToolbox.Demo
 
                 case PhysicsModule.Electrostatics:
                     Render2DField(_result.Field);
-                    UpdateLegend(_result.MinValue, _result.MaxValue, legendTitle, legendUnit);
+                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
                     if (_showVectors)
                     {
                         CacheGradientVectorField(_result.Field, invertDirection: true);
@@ -576,9 +742,106 @@ namespace EngineeringToolbox.Demo
                     break;
 
                 case PhysicsModule.BeamStress:
-                    Render1DProfile(_result.Values, _result.MinValue, _result.MaxValue);
-                    UpdateLegend(_result.MinValue, _result.MaxValue, legendTitle, legendUnit);
+                    Render1DProfile(_result.Values, resultRange.min, resultRange.max);
+                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
                     _vectorOverlay.ClearWorld();
+                    break;
+
+                case PhysicsModule.FluidFlow2D:
+                    double[,] fluidField;
+                    if (_timeline != null && _currentFrame < _timeline.Count)
+                    {
+                        fluidField = _timeline[_currentFrame].ToArray();
+                        Render2DField(fluidField, _globalMin, _globalMax);
+                        UpdateLegend(_globalMin, _globalMax, legendTitle, legendUnit);
+                    }
+                    else
+                    {
+                        fluidField = _result.Field;
+                        Render2DField(fluidField);
+                        UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    }
+
+                    if (_showVectors && _result.Vx != null && _result.Vy != null)
+                    {
+                        _activeVectorFieldX = _result.Vx;
+                        _activeVectorFieldY = _result.Vy;
+                        _vectorOverlay.SetVisible(true);
+                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                            _activeVectorFieldX, _activeVectorFieldY,
+                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                    }
+                    else
+                    {
+                        _vectorOverlay.ClearWorld();
+                    }
+                    break;
+
+                case PhysicsModule.CylinderFlow:
+                    double[,] cylField;
+                    if (_timeline != null && _currentFrame < _timeline.Count)
+                    {
+                        cylField = _timeline[_currentFrame].ToArray();
+                        Render2DField(cylField, _globalMin, _globalMax, _result.CylinderMask);
+                        UpdateLegend(_globalMin, _globalMax, legendTitle, legendUnit);
+                    }
+                    else
+                    {
+                        cylField = _result.Vorticity ?? _result.Field;
+                        Render2DField(cylField, resultRange.min, resultRange.max, _result.CylinderMask);
+                        UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    }
+
+                    if (_showVectors && _result.Vx != null && _result.Vy != null)
+                    {
+                        _activeVectorFieldX = _result.Vx;
+                        _activeVectorFieldY = _result.Vy;
+                        _vectorOverlay.SetVisible(true);
+                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                            _activeVectorFieldX, _activeVectorFieldY,
+                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1), _result.CylinderMask, 0f);
+                    }
+                    else
+                    {
+                        _vectorOverlay.ClearWorld();
+                    }
+                    break;
+
+                case PhysicsModule.Magnetostatics:
+                    Render2DField(_result.VectorPotential ?? _result.Field);
+                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    if (_showVectors && _result.Bx != null && _result.By != null)
+                    {
+                        _activeVectorFieldX = _result.Bx;
+                        _activeVectorFieldY = _result.By;
+                        _vectorOverlay.SetVisible(true);
+                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                            _activeVectorFieldX, _activeVectorFieldY,
+                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                    }
+                    else
+                    {
+                        _vectorOverlay.ClearWorld();
+                    }
+                    break;
+
+                case PhysicsModule.PlaneStress:
+                    double[,] stressField = _result.StressXX ?? _result.Field;
+                    Render2DField(stressField);
+                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    if (_showVectors && _result.Ux != null && _result.Uy != null)
+                    {
+                        _activeVectorFieldX = _result.Ux;
+                        _activeVectorFieldY = _result.Uy;
+                        _vectorOverlay.SetVisible(true);
+                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                            _activeVectorFieldX, _activeVectorFieldY,
+                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                    }
+                    else
+                    {
+                        _vectorOverlay.ClearWorld();
+                    }
                     break;
             }
 
@@ -702,6 +965,19 @@ namespace EngineeringToolbox.Demo
             _volumeView.SetTexture(tex);
         }
 
+        private void Render2DField(double[,] field, double min, double max, bool[,] mask)
+        {
+            if (field == null) return;
+            if (mask == null)
+            {
+                Render2DField(field, min, max);
+                return;
+            }
+
+            var tex = _heatmapRenderer.Render(field, min, max, mask, new Color(0.02f, 0.02f, 0.03f, 1f));
+            _volumeView.SetTexture(tex);
+        }
+
         private double[] GetCurrent1DProfile()
         {
             if (_timeline1D != null && _timeline1D.Count > 0)
@@ -783,6 +1059,158 @@ namespace EngineeringToolbox.Demo
             }
 
             return sum / (width * height);
+        }
+
+        private SimulationResult SanitizeSimulationResult(SimulationResult result)
+        {
+            if (result == null)
+            {
+                return null;
+            }
+
+            // All SimulationResult properties are read-only from outside the DLL.
+            // NaN/Infinity values are handled at render time by safe helpers
+            // (ComputeFiniteMinMax, SafeMinValue, SafeMaxValue, HeatmapRenderer guards).
+
+            return result;
+        }
+
+        private static double[,] Sanitize2DField(double[,] field)
+        {
+            if (field == null)
+            {
+                return null;
+            }
+
+            int width = field.GetLength(0);
+            int height = field.GetLength(1);
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                if (!double.IsFinite(field[x, y]))
+                {
+                    field[x, y] = 0.0;
+                }
+            }
+
+            return field;
+        }
+
+        private static double[] Sanitize1DField(double[] values)
+        {
+            if (values == null)
+            {
+                return null;
+            }
+
+            for (int index = 0; index < values.Length; index++)
+            {
+                if (!double.IsFinite(values[index]))
+                {
+                    values[index] = 0.0;
+                }
+            }
+
+            return values;
+        }
+
+        private static (double min, double max) ComputeFiniteMinMax(double[,] field)
+        {
+            double min = double.MaxValue;
+            double max = double.MinValue;
+            int width = field.GetLength(0);
+            int height = field.GetLength(1);
+
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                double value = field[x, y];
+                if (!double.IsFinite(value))
+                {
+                    continue;
+                }
+
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+
+            if (min == double.MaxValue || max == double.MinValue)
+            {
+                return (0.0, 1.0);
+            }
+
+            return (min, max);
+        }
+
+        private static (double min, double max) ComputeFiniteMinMax(double[] values)
+        {
+            double min = double.MaxValue;
+            double max = double.MinValue;
+
+            for (int index = 0; index < values.Length; index++)
+            {
+                double value = values[index];
+                if (!double.IsFinite(value))
+                {
+                    continue;
+                }
+
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+
+            if (min == double.MaxValue || max == double.MinValue)
+            {
+                return (0.0, 1.0);
+            }
+
+            return (min, max);
+        }
+
+        private static double SafeScalar(double value, double fallback = 0.0)
+        {
+            return double.IsFinite(value) ? value : fallback;
+        }
+
+        private static (double min, double max) GetSafeResultRange(SimulationResult result)
+        {
+            if (result == null)
+            {
+                return (0.0, 1.0);
+            }
+
+            double safeMin = SafeScalar(result.MinValue, double.NaN);
+            double safeMax = SafeScalar(result.MaxValue, double.NaN);
+            if (!double.IsNaN(safeMin) && !double.IsNaN(safeMax) && safeMax >= safeMin)
+            {
+                return (safeMin, safeMax);
+            }
+
+            double[,] primaryField = result.Field;
+            if (result.Type == MultiphysicsType.CylinderFlow && result.Vorticity != null)
+            {
+                primaryField = result.Vorticity;
+            }
+            else if (result.Type == MultiphysicsType.MagneticField && result.VectorPotential != null)
+            {
+                primaryField = result.VectorPotential;
+            }
+            else if (result.Type == MultiphysicsType.PlaneStress && result.StressXX != null)
+            {
+                primaryField = result.StressXX;
+            }
+
+            if (primaryField != null)
+            {
+                return ComputeFiniteMinMax(primaryField);
+            }
+
+            if (result.Values != null && result.Values.Length > 0)
+            {
+                return ComputeFiniteMinMax(result.Values);
+            }
+
+            return (0.0, 1.0);
         }
 
         private void UpdateChart()
@@ -1010,8 +1438,9 @@ namespace EngineeringToolbox.Demo
             if (_result == null) return;
 
             string valueUnit = GetLegendUnit();
-            string info = $"<b>{config.module}</b>  |  Material: {config.GetMaterial().Name}\n";
-            info += $"Max: {FormatValueWithUnit(_result.MaxValue, valueUnit)}  Min: {FormatValueWithUnit(_result.MinValue, valueUnit)}";
+            var resultRange = GetSafeResultRange(_result);
+            string info = $"<b>{PhysicsModuleCatalog.GetDisciplineLabel(GetActiveDiscipline())}</b> / {PhysicsModuleCatalog.GetModuleLabel(config.module)}  |  Material: {config.GetMaterial().Name}\n";
+            info += $"Max: {FormatValueWithUnit(resultRange.max, valueUnit)}  Min: {FormatValueWithUnit(resultRange.min, valueUnit)}";
 
             int frameCount = GetFrameCount();
             if (frameCount > 0)
@@ -1030,6 +1459,14 @@ namespace EngineeringToolbox.Demo
                 info += $"\nVector overlay: {(_showVectors ? (_playing ? "Electric field live" : "Electric field") : "Off")}";
             else if (config.module == PhysicsModule.HeatTransfer)
                 info += $"\nVector overlay: {(_showVectors ? "Heat flow" : "Off")}";
+            else if (config.module == PhysicsModule.FluidFlow2D)
+                info += $"\nInlet velocity: {config.inletVelocity:F2} m/s  |  Vectors: {(_showVectors ? "On" : "Off")}";
+            else if (config.module == PhysicsModule.CylinderFlow)
+                info += $"\nU∞: {config.inletVelocity:F2} m/s  R: {config.cylinderRadius:F3} m  Cd: {SafeScalar(_result.DragCoefficient):F3}  St: {SafeScalar(_result.StrouhalNumber):F3}";
+            else if (config.module == PhysicsModule.Magnetostatics)
+                info += $"\nJ: {config.currentDensity:E1} A/m²  |  B-field vectors: {(_showVectors ? "On" : "Off")}";
+            else if (config.module == PhysicsModule.PlaneStress)
+                info += $"\nLoad: {config.pointLoadValue:F0} N  |  Displacement vectors: {(_showVectors ? "On" : "Off")}";
 
             if (_activeMoveAxis != VolumeMoveAxis.None)
                 info += $"\nRotating axis: {_activeMoveAxis}";
@@ -1040,7 +1477,7 @@ namespace EngineeringToolbox.Demo
         private void UpdateStatusBar()
         {
             string playbackLabel = CanPlayCurrentModule() ? (_playing ? "Pause" : "Play") : "Static";
-            string status = $"Inspector updates rerun automatically  |  Space: {playbackLabel}  |  Drag XYZ: rotate cube  |  C: reset view  |  F12: screenshot";
+            string status = $"Category + submodel are selected in the HUD  |  Space: {playbackLabel}  |  Q/E: cycle submodel  |  C: reset view  |  F12: screenshot";
             _statusText.text = status;
         }
 
@@ -1109,7 +1546,7 @@ namespace EngineeringToolbox.Demo
             EnsureEventSystem();
 
             var topPanel = CreatePanel(canvasGo.transform, "TopPanel", new Vector2(0.02f, 0.82f), new Vector2(0.31f, 0.97f), new Color(0.03f, 0.08f, 0.12f, 0.78f));
-            var bottomPanel = CreatePanel(canvasGo.transform, "BottomPanel", new Vector2(0.14f, 0.015f), new Vector2(0.86f, 0.105f), new Color(0.03f, 0.08f, 0.12f, 0.8f));
+            var bottomPanel = CreatePanel(canvasGo.transform, "BottomPanel", new Vector2(0.14f, 0.015f), new Vector2(0.86f, 0.135f), new Color(0.03f, 0.08f, 0.12f, 0.8f));
             var titlePanel = CreatePanel(canvasGo.transform, "TitlePanel", new Vector2(0.70f, 0.88f), new Vector2(0.97f, 0.96f), new Color(0.05f, 0.16f, 0.24f, 0.66f));
             var legendPanel = CreatePanel(canvasGo.transform, "LegendPanel", new Vector2(0.90f, 0.20f), new Vector2(0.975f, 0.56f), new Color(0.03f, 0.08f, 0.12f, 0.74f));
             var materialPanel = CreatePanel(canvasGo.transform, "MaterialPanel", new Vector2(0.79f, 0.77f), new Vector2(0.975f, 0.84f), new Color(0.03f, 0.08f, 0.12f, 0.72f));
@@ -1118,7 +1555,7 @@ namespace EngineeringToolbox.Demo
             _infoText = CreateText(topPanel, "InfoText", 16, TextAnchor.UpperLeft);
             _statusText = CreateText(bottomPanel, "StatusBar", 13, TextAnchor.MiddleLeft);
             _titleText = CreateText(titlePanel, "TitleText", 18, TextAnchor.MiddleCenter);
-            _titleText.text = "Engineering Toolbox | 3D Slice Demo";
+            _titleText.text = "Engineering Toolbox | Category / Submodel";
             _titleText.color = new Color(0.8f, 0.96f, 1f);
             _statusText.color = new Color(0.82f, 0.87f, 0.92f);
             _statusText.rectTransform.anchorMin = new Vector2(0.02f, 0.04f);
@@ -1133,27 +1570,41 @@ namespace EngineeringToolbox.Demo
 
         private void CreateControlBar(RectTransform parent)
         {
-            _moduleButtons = new Button[ModuleOrder.Length];
-            _moduleButtonTexts = new Text[ModuleOrder.Length];
+            _disciplineButtons = new Button[DisciplineOrder.Length];
+            _disciplineButtonTexts = new Text[DisciplineOrder.Length];
+            _submoduleButtons = new Button[3];
+            _submoduleButtonTexts = new Text[3];
 
-            string[] moduleLabels = { "Heat", "Electro", "Flow", "Beam" };
-            float moduleWidth = 0.10f;
-            float moduleGap = 0.015f;
-            float moduleStart = 0.02f;
-            for (int i = 0; i < ModuleOrder.Length; i++)
+            float disciplineWidth = 0.115f;
+            float disciplineGap = 0.01f;
+            float disciplineStart = 0.02f;
+            for (int i = 0; i < DisciplineOrder.Length; i++)
             {
-                float xMin = moduleStart + i * (moduleWidth + moduleGap);
-                float xMax = xMin + moduleWidth;
-                var module = ModuleOrder[i];
-                _moduleButtons[i] = CreateButton(parent, $"ModuleButton_{module}", moduleLabels[i], new Vector2(xMin, 0.44f), new Vector2(xMax, 0.88f), () => SelectModule(module), out _moduleButtonTexts[i]);
+                float xMin = disciplineStart + i * (disciplineWidth + disciplineGap);
+                float xMax = xMin + disciplineWidth;
+                PhysicsDiscipline discipline = DisciplineOrder[i];
+                _disciplineButtons[i] = CreateButton(parent, $"DisciplineButton_{discipline}", PhysicsModuleCatalog.GetDisciplineLabel(discipline), new Vector2(xMin, 0.54f), new Vector2(xMax, 0.92f), () => SelectDiscipline(discipline), out _disciplineButtonTexts[i]);
+                _disciplineButtonTexts[i].fontSize = 11;
             }
 
-            _playPauseButton = CreateButton(parent, "PlayPauseButton", "Play", new Vector2(0.50f, 0.44f), new Vector2(0.58f, 0.88f), TogglePlayback, out _playPauseButtonText);
-            _previousFrameButton = CreateButton(parent, "PrevFrameButton", "Prev", new Vector2(0.595f, 0.44f), new Vector2(0.665f, 0.88f), () => StepFromButton(-1), out _);
-            _nextFrameButton = CreateButton(parent, "NextFrameButton", "Next", new Vector2(0.68f, 0.44f), new Vector2(0.75f, 0.88f), () => StepFromButton(1), out _);
-            _vectorToggleButton = CreateButton(parent, "VectorToggleButton", "Vectors", new Vector2(0.765f, 0.44f), new Vector2(0.855f, 0.88f), ToggleVectors, out _vectorToggleButtonText);
-            _chartToggleButton = CreateButton(parent, "ChartToggleButton", "Chart", new Vector2(0.87f, 0.44f), new Vector2(0.925f, 0.88f), ToggleChartOverlay, out _chartToggleButtonText);
-            _materialButton = CreateButton(parent, "MaterialButton", "Material", new Vector2(0.935f, 0.44f), new Vector2(0.985f, 0.88f), CycleMaterialFromButton, out _);
+            float submoduleWidth = 0.155f;
+            float submoduleGap = 0.01f;
+            float submoduleStart = 0.02f;
+            for (int i = 0; i < _submoduleButtons.Length; i++)
+            {
+                float xMin = submoduleStart + i * (submoduleWidth + submoduleGap);
+                float xMax = xMin + submoduleWidth;
+                int submoduleIndex = i;
+                _submoduleButtons[i] = CreateButton(parent, $"SubmoduleButton_{i}", "Submodel", new Vector2(xMin, 0.08f), new Vector2(xMax, 0.46f), () => SelectActiveSubmodule(submoduleIndex), out _submoduleButtonTexts[i]);
+                _submoduleButtonTexts[i].fontSize = 11;
+            }
+
+            _playPauseButton = CreateButton(parent, "PlayPauseButton", "Play", new Vector2(0.56f, 0.18f), new Vector2(0.64f, 0.82f), TogglePlayback, out _playPauseButtonText);
+            _previousFrameButton = CreateButton(parent, "PrevFrameButton", "Prev", new Vector2(0.65f, 0.18f), new Vector2(0.71f, 0.82f), () => StepFromButton(-1), out _);
+            _nextFrameButton = CreateButton(parent, "NextFrameButton", "Next", new Vector2(0.72f, 0.18f), new Vector2(0.78f, 0.82f), () => StepFromButton(1), out _);
+            _vectorToggleButton = CreateButton(parent, "VectorToggleButton", "Vectors", new Vector2(0.79f, 0.18f), new Vector2(0.87f, 0.82f), ToggleVectors, out _vectorToggleButtonText);
+            _chartToggleButton = CreateButton(parent, "ChartToggleButton", "Chart", new Vector2(0.88f, 0.18f), new Vector2(0.93f, 0.82f), ToggleChartOverlay, out _chartToggleButtonText);
+            _materialButton = CreateButton(parent, "MaterialButton", "Material", new Vector2(0.94f, 0.18f), new Vector2(0.985f, 0.82f), CycleMaterialFromButton, out _);
         }
 
         private RectTransform CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Color color)
@@ -1302,6 +1753,17 @@ namespace EngineeringToolbox.Demo
             _materialSwatchText.text = $"Material\n{material.Name}";
         }
 
+        private void SelectActiveSubmodule(int index)
+        {
+            PhysicsModule[] activeSubmodules = GetActiveSubmodules();
+            if (index < 0 || index >= activeSubmodules.Length)
+            {
+                return;
+            }
+
+            SelectModule(activeSubmodules[index]);
+        }
+
         private string GetLegendTitle()
         {
             switch (config.module)
@@ -1310,6 +1772,10 @@ namespace EngineeringToolbox.Demo
                 case PhysicsModule.Electrostatics: return "Potential";
                 case PhysicsModule.PipeFlow: return "Velocity";
                 case PhysicsModule.BeamStress: return "Deflection";
+                case PhysicsModule.FluidFlow2D: return "Velocity Mag";
+                case PhysicsModule.CylinderFlow: return "Vorticity";
+                case PhysicsModule.Magnetostatics: return "Vector Potential";
+                case PhysicsModule.PlaneStress: return "Stress σxx";
                 default: return "Value";
             }
         }
@@ -1322,6 +1788,10 @@ namespace EngineeringToolbox.Demo
                 case PhysicsModule.Electrostatics: return "Average Potential vs Time";
                 case PhysicsModule.PipeFlow: return "Flow Rate vs Time";
                 case PhysicsModule.BeamStress: return "Deflection vs Time";
+                case PhysicsModule.FluidFlow2D: return "Average Velocity vs Time";
+                case PhysicsModule.CylinderFlow: return "Average Velocity vs Time";
+                case PhysicsModule.Magnetostatics: return "Vector Potential";
+                case PhysicsModule.PlaneStress: return "Stress Distribution";
                 default: return "Time Series";
             }
         }
@@ -1334,6 +1804,10 @@ namespace EngineeringToolbox.Demo
                 case PhysicsModule.Electrostatics: return "V";
                 case PhysicsModule.PipeFlow: return "m^3/s";
                 case PhysicsModule.BeamStress: return "mm";
+                case PhysicsModule.FluidFlow2D: return "m/s";
+                case PhysicsModule.CylinderFlow: return "m/s";
+                case PhysicsModule.Magnetostatics: return "T·m";
+                case PhysicsModule.PlaneStress: return "Pa";
                 default: return string.Empty;
             }
         }
@@ -1346,6 +1820,10 @@ namespace EngineeringToolbox.Demo
                 case PhysicsModule.Electrostatics: return "V";
                 case PhysicsModule.PipeFlow: return "m/s";
                 case PhysicsModule.BeamStress: return "mm";
+                case PhysicsModule.FluidFlow2D: return "m/s";
+                case PhysicsModule.CylinderFlow: return "1/s";
+                case PhysicsModule.Magnetostatics: return "T·m";
+                case PhysicsModule.PlaneStress: return "Pa";
                 default: return string.Empty;
             }
         }
@@ -1362,7 +1840,9 @@ namespace EngineeringToolbox.Demo
 
         private double ConvertDisplayValue(double value)
         {
-            return config.module == PhysicsModule.BeamStress ? value * 1000.0 : value;
+            if (config.module == PhysicsModule.BeamStress)
+                return value * 1000.0; // m → mm
+            return value;
         }
 
         private static string FormatNumericValue(double value)
@@ -1455,15 +1935,29 @@ namespace EngineeringToolbox.Demo
 
         private void UpdateControlBar()
         {
-            if (_moduleButtons == null || _moduleButtonTexts == null)
+            if (_disciplineButtons == null || _disciplineButtonTexts == null || _submoduleButtons == null || _submoduleButtonTexts == null)
             {
                 return;
             }
 
-            for (int i = 0; i < _moduleButtons.Length; i++)
+            PhysicsDiscipline activeDiscipline = GetActiveDiscipline();
+            for (int i = 0; i < _disciplineButtons.Length; i++)
             {
-                bool isActive = ModuleOrder[i] == config.module;
-                ApplyButtonVisualState(_moduleButtons[i], _moduleButtonTexts[i], true, isActive);
+                bool isActive = DisciplineOrder[i] == activeDiscipline;
+                ApplyButtonVisualState(_disciplineButtons[i], _disciplineButtonTexts[i], true, isActive);
+            }
+
+            PhysicsModule[] activeSubmodules = GetActiveSubmodules();
+            for (int i = 0; i < _submoduleButtons.Length; i++)
+            {
+                bool hasModule = i < activeSubmodules.Length;
+                if (_submoduleButtonTexts[i] != null)
+                {
+                    _submoduleButtonTexts[i].text = hasModule ? PhysicsModuleCatalog.GetModuleLabel(activeSubmodules[i]) : "-";
+                }
+
+                bool isActive = hasModule && activeSubmodules[i] == config.module;
+                ApplyButtonVisualState(_submoduleButtons[i], _submoduleButtonTexts[i], hasModule, isActive);
             }
 
             bool canPlay = CanPlayCurrentModule();

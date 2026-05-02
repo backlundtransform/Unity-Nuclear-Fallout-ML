@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using CSharpNumerics.Engines.Multiphysics.Enums;
 using CSharpNumerics.Physics.Materials.Engineering;
+using CSharpNumerics.Physics.SolidMechanics.Enums;
 
 namespace EngineeringToolbox.Core
 {
@@ -35,8 +36,10 @@ namespace EngineeringToolbox.Core
         public float youngsModulus = 200e9f;
         [Tooltip("Poisson's ratio ν")]
         [Range(0f, 0.5f)] public float poissonsRatio = 0.3f;
+        [Tooltip("Relative magnetic permeability μr")]
+        [Range(0.1f, 1000f)] public float magneticPermeability = 1f;
 
-        [Header("2D Geometry (Heat, Electric)")]
+        [Header("2D Geometry (Heat, Electric, Fluid, Magnetic, Stress)")]
         [Range(0.01f, 10f)] public float width = 0.1f;
         [Range(0.01f, 10f)] public float height = 0.1f;
         [Range(5, 100)] public int nx = 30;
@@ -68,6 +71,24 @@ namespace EngineeringToolbox.Core
         [Header("Pipe Flow")]
         public float pressureGradient = -100f;
 
+        [Header("Cylinder Flow")]
+        [Tooltip("Inlet velocity U∞ [m/s]")]
+        [Range(0.01f, 10f)] public float inletVelocity = 1f;
+        [Tooltip("Cylinder centre X position [m]")]
+        [Range(0.01f, 5f)] public float cylinderCenterX = 0.2f;
+        [Tooltip("Cylinder centre Y position [m]")]
+        [Range(0.01f, 5f)] public float cylinderCenterY = 0.2f;
+        [Tooltip("Cylinder radius [m]")]
+        [Range(0.005f, 1f)] public float cylinderRadius = 0.05f;
+
+        [Header("Magnetostatics")]
+        [Tooltip("Current density J at source [A/m²]")]
+        public float currentDensity = 1e6f;
+
+        [Header("Plane Stress")]
+        [Tooltip("Uniform distributed load [N/m²]")]
+        public float uniformLoad = 0f;
+
         /// <summary>
         /// Returns the <see cref="EngineeringMaterial"/> for the current preset,
         /// or builds a custom one from Inspector fields.
@@ -83,6 +104,14 @@ namespace EngineeringToolbox.Core
                 case MaterialPreset.Air: return EngineeringLibrary.Air;
                 case MaterialPreset.Concrete: return EngineeringLibrary.Concrete;
                 case MaterialPreset.Glass: return EngineeringLibrary.Glass;
+                case MaterialPreset.Titanium: return EngineeringLibrary.Titanium;
+                case MaterialPreset.Brass: return EngineeringLibrary.Brass;
+                case MaterialPreset.StainlessSteel: return EngineeringLibrary.StainlessSteel;
+                case MaterialPreset.Oil: return EngineeringLibrary.Oil;
+                case MaterialPreset.Glycerin: return EngineeringLibrary.Glycerin;
+                case MaterialPreset.Wood: return EngineeringLibrary.Wood;
+                case MaterialPreset.Rubber: return EngineeringLibrary.Rubber;
+                case MaterialPreset.Plastic: return EngineeringLibrary.Plastic;
                 case MaterialPreset.Custom:
                     return new EngineeringMaterial(
                         "Custom",
@@ -92,7 +121,8 @@ namespace EngineeringToolbox.Core
                         dynamicViscosity,
                         electricPermittivity,
                         youngsModulus,
-                        poissonsRatio);
+                        poissonsRatio,
+                        magneticPermeability);
                 default: return EngineeringLibrary.Steel;
             }
         }
@@ -108,9 +138,21 @@ namespace EngineeringToolbox.Core
                 case PhysicsModule.Electrostatics: return MultiphysicsType.ElectricField;
                 case PhysicsModule.PipeFlow: return MultiphysicsType.PipeFlow;
                 case PhysicsModule.BeamStress: return MultiphysicsType.BeamStress;
+                case PhysicsModule.FluidFlow2D: return MultiphysicsType.FluidFlow2D;
+                case PhysicsModule.CylinderFlow: return MultiphysicsType.CylinderFlow;
+                case PhysicsModule.Magnetostatics: return MultiphysicsType.MagneticField;
+                case PhysicsModule.PlaneStress: return MultiphysicsType.PlaneStress;
                 default: return MultiphysicsType.HeatPlate;
             }
         }
+    }
+
+    public enum PhysicsDiscipline
+    {
+        Thermodynamics,
+        SolidMechanics,
+        Electromagnetism,
+        FluidDynamics
     }
 
     public enum PhysicsModule
@@ -118,7 +160,11 @@ namespace EngineeringToolbox.Core
         HeatTransfer,
         Electrostatics,
         PipeFlow,
-        BeamStress
+        BeamStress,
+        FluidFlow2D,
+        CylinderFlow,
+        Magnetostatics,
+        PlaneStress
     }
 
     public enum MaterialPreset
@@ -130,6 +176,153 @@ namespace EngineeringToolbox.Core
         Air,
         Concrete,
         Glass,
+        Titanium,
+        Brass,
+        StainlessSteel,
+        Oil,
+        Glycerin,
+        Wood,
+        Rubber,
+        Plastic,
         Custom
+    }
+
+    public static class PhysicsModuleCatalog
+    {
+        private static readonly PhysicsModule[] ThermodynamicsModules =
+        {
+            PhysicsModule.HeatTransfer
+        };
+
+        private static readonly PhysicsModule[] SolidMechanicsModules =
+        {
+            PhysicsModule.BeamStress,
+            PhysicsModule.PlaneStress
+        };
+
+        private static readonly PhysicsModule[] ElectromagnetismModules =
+        {
+            PhysicsModule.Electrostatics,
+            PhysicsModule.Magnetostatics
+        };
+
+        private static readonly PhysicsModule[] FluidDynamicsModules =
+        {
+            PhysicsModule.PipeFlow,
+            PhysicsModule.FluidFlow2D,
+            PhysicsModule.CylinderFlow
+        };
+
+        public static PhysicsDiscipline GetDiscipline(PhysicsModule module)
+        {
+            switch (module)
+            {
+                case PhysicsModule.HeatTransfer:
+                    return PhysicsDiscipline.Thermodynamics;
+                case PhysicsModule.BeamStress:
+                case PhysicsModule.PlaneStress:
+                    return PhysicsDiscipline.SolidMechanics;
+                case PhysicsModule.Electrostatics:
+                case PhysicsModule.Magnetostatics:
+                    return PhysicsDiscipline.Electromagnetism;
+                case PhysicsModule.PipeFlow:
+                case PhysicsModule.FluidFlow2D:
+                case PhysicsModule.CylinderFlow:
+                    return PhysicsDiscipline.FluidDynamics;
+                default:
+                    return PhysicsDiscipline.Thermodynamics;
+            }
+        }
+
+        public static PhysicsModule[] GetModules(PhysicsDiscipline discipline)
+        {
+            switch (discipline)
+            {
+                case PhysicsDiscipline.Thermodynamics:
+                    return ThermodynamicsModules;
+                case PhysicsDiscipline.SolidMechanics:
+                    return SolidMechanicsModules;
+                case PhysicsDiscipline.Electromagnetism:
+                    return ElectromagnetismModules;
+                case PhysicsDiscipline.FluidDynamics:
+                    return FluidDynamicsModules;
+                default:
+                    return ThermodynamicsModules;
+            }
+        }
+
+        public static int GetModuleIndexInDiscipline(PhysicsModule module)
+        {
+            var modules = GetModules(GetDiscipline(module));
+            for (int index = 0; index < modules.Length; index++)
+            {
+                if (modules[index] == module)
+                {
+                    return index;
+                }
+            }
+
+            return 0;
+        }
+
+        public static PhysicsModule GetDefaultModule(PhysicsDiscipline discipline)
+        {
+            var modules = GetModules(discipline);
+            return modules.Length > 0 ? modules[0] : PhysicsModule.HeatTransfer;
+        }
+
+        public static PhysicsModule GetModule(PhysicsDiscipline discipline, int index)
+        {
+            var modules = GetModules(discipline);
+            if (modules.Length == 0)
+            {
+                return PhysicsModule.HeatTransfer;
+            }
+
+            int clampedIndex = Mathf.Clamp(index, 0, modules.Length - 1);
+            return modules[clampedIndex];
+        }
+
+        public static string GetDisciplineLabel(PhysicsDiscipline discipline)
+        {
+            switch (discipline)
+            {
+                case PhysicsDiscipline.Thermodynamics:
+                    return "Thermodynamics";
+                case PhysicsDiscipline.SolidMechanics:
+                    return "Solid Mechanics";
+                case PhysicsDiscipline.Electromagnetism:
+                    return "Electromagnetism";
+                case PhysicsDiscipline.FluidDynamics:
+                    return "Fluid Dynamics";
+                default:
+                    return "Thermodynamics";
+            }
+        }
+
+        public static string GetModuleLabel(PhysicsModule module)
+        {
+            switch (module)
+            {
+                case PhysicsModule.HeatTransfer:
+                    return "Heat Transfer";
+                case PhysicsModule.Electrostatics:
+                    return "Electrostatics";
+                case PhysicsModule.PipeFlow:
+                    return "Pipe Flow";
+                case PhysicsModule.BeamStress:
+                    return "Beam Stress";
+                case PhysicsModule.FluidFlow2D:
+                    return "2D Fluid Flow";
+                case PhysicsModule.CylinderFlow:
+                    return "Cylinder Flow";
+                case PhysicsModule.Magnetostatics:
+                    return "Magnetostatics";
+                case PhysicsModule.PlaneStress:
+                    return "Plane Stress";
+                default:
+                    return module.ToString();
+            }
+        }
     }
 }
