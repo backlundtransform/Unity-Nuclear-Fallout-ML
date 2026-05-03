@@ -57,6 +57,7 @@ namespace EngineeringToolbox.Demo
         private int _materialIndex;
         private double _globalMin;
         private double _globalMax;
+        private double _activeSimulationDt;
         private double[,] _activeVectorFieldX;
         private double[,] _activeVectorFieldY;
         private string _configFingerprint;
@@ -194,9 +195,28 @@ namespace EngineeringToolbox.Demo
                 }
             }
 
-            if (_playing && config.module == PhysicsModule.Electrostatics && _showVectors)
+            if (_playing && _showVectors)
             {
-                UpdateElectrostaticVectorAnimation();
+                if (config.module == PhysicsModule.Electrostatics)
+                {
+                    UpdateElectrostaticVectorAnimation();
+                }
+                else if (config.module == PhysicsModule.FluidFlow2D)
+                {
+                    UpdateFlowVectorAnimation();
+                }
+                else if (config.module == PhysicsModule.CylinderFlow)
+                {
+                    UpdateFlowVectorAnimation(_result != null ? _result.CylinderMask : null);
+                }
+                else if (config.module == PhysicsModule.Magnetostatics)
+                {
+                    UpdateFlowVectorAnimation();
+                }
+                else if (config.module == PhysicsModule.PlaneStress)
+                {
+                    UpdateFlowVectorAnimation();
+                }
             }
 
             UpdateStatusBar();
@@ -317,7 +337,9 @@ namespace EngineeringToolbox.Demo
                 || module == PhysicsModule.Electrostatics
                 || module == PhysicsModule.PipeFlow
                 || module == PhysicsModule.FluidFlow2D
-                || module == PhysicsModule.CylinderFlow;
+                || module == PhysicsModule.CylinderFlow
+                || module == PhysicsModule.Magnetostatics
+                || module == PhysicsModule.PlaneStress;
         }
 
         private void ApplyModuleDefaults(PhysicsModule module)
@@ -330,6 +352,15 @@ namespace EngineeringToolbox.Demo
 
             switch (module)
             {
+                case PhysicsModule.HeatTransfer:
+                    config.width = 0.1f;
+                    config.height = 0.1f;
+                    config.nx = 30;
+                    config.ny = 30;
+                    config.dt = 0.001f;
+                    config.steps = 400;
+                    SetMaterialPreset(MaterialPreset.Steel);
+                    break;
                 case PhysicsModule.CylinderFlow:
                     config.width = 2.4f;
                     config.height = 1.2f;
@@ -354,10 +385,38 @@ namespace EngineeringToolbox.Demo
                     SetMaterialPreset(MaterialPreset.Oil);
                     break;
                 case PhysicsModule.PipeFlow:
+                    config.radius = 0.01f;
+                    config.nodes = 41;
+                    config.length = 1.0f;
+                    config.dt = 0.01f;
+                    config.steps = 300;
+                    config.pressureGradient = -100f;
                     SetMaterialPreset(MaterialPreset.Water);
+                    break;
+                case PhysicsModule.BeamStress:
+                    config.length = 2f;
+                    config.nodes = 101;
+                    config.sectionWidth = 0.05f;
+                    config.sectionHeight = 0.1f;
+                    config.pointLoadValue = 5000f;
+                    config.pointLoadPosition = 1f;
+                    config.distributedLoad = 0f;
+                    SetMaterialPreset(MaterialPreset.Steel);
                     break;
                 case PhysicsModule.Magnetostatics:
                     SetMaterialPreset(MaterialPreset.Steel);
+                    break;
+                case PhysicsModule.PlaneStress:
+                    config.width = 1.2f;
+                    config.height = 0.6f;
+                    config.nx = 72;
+                    config.ny = 36;
+                    config.topBC = 0f;
+                    config.bottomBC = 0f;
+                    config.rightBC = 0f;
+                    config.pointLoadValue = 5_000_000f;
+                    config.uniformLoad = -250_000f;
+                    SetMaterialPreset(MaterialPreset.Aluminum);
                     break;
             }
         }
@@ -502,6 +561,7 @@ namespace EngineeringToolbox.Demo
             _infoText.text = $"Running {config.module}...";
             _globalMin = 0.0;
             _globalMax = 1.0;
+            _activeSimulationDt = config.dt;
             _result = null;
             _timeline = null;
             _timeline1D = null;
@@ -509,6 +569,7 @@ namespace EngineeringToolbox.Demo
             _vectorOverlay.ClearWorld();
 
             var material = config.GetMaterial();
+            var heatTransferSolve = GetHeatTransferSolveParameters(material);
             SimulationResult result = null;
 
             await Task.Run(() =>
@@ -522,7 +583,7 @@ namespace EngineeringToolbox.Demo
                             .WithBoundary(top: config.topBC, bottom: config.bottomBC,
                                           left: config.leftBC, right: config.rightBC)
                             .WithInitialCondition(0.0)
-                            .Solve(dt: config.dt, steps: config.steps);
+                            .Solve(dt: heatTransferSolve.dt, steps: heatTransferSolve.steps);
                         break;
 
                     case PhysicsModule.Electrostatics:
@@ -584,19 +645,31 @@ namespace EngineeringToolbox.Demo
                         break;
 
                     case PhysicsModule.PlaneStress:
+                        int planeStressLoadX = Mathf.Clamp(config.nx - 2, 1, config.nx - 1);
+                        int planeStressLoadY = Mathf.Clamp(config.ny / 2, 1, config.ny - 2);
+                        // The solver's Navier-Cauchy PDE expects body force density (N/m³).
+                        // Convert point force (N) to force density by dividing by cell area (dx*dy).
+                        double psDx = (double)config.width / config.nx;
+                        double psDy = (double)config.height / config.ny;
+                        double forceDensity = config.pointLoadValue / (psDx * psDy);
                         var stressBuilder = SimulationType.Create(MultiphysicsType.PlaneStress)
                             .WithMaterial(material)
                             .WithGeometry(config.width, config.height, config.nx, config.ny)
                             .WithBoundary(top: config.topBC, bottom: config.bottomBC, left: 0, right: config.rightBC);
-                        stressBuilder = stressBuilder.AddSource(config.nx - 1, config.ny / 2, config.pointLoadValue);
+                        stressBuilder = stressBuilder.AddSource(planeStressLoadX, planeStressLoadY, forceDensity);
                         if (config.uniformLoad != 0)
-                            stressBuilder = stressBuilder.WithSource(config.uniformLoad);
-                        result = stressBuilder.Solve(maxIterations: 20000, tolerance: 1e-8);
+                        {
+                            // UniformLoad is already a distributed load (N/m³), no scaling needed
+                            double uniformDensity = config.uniformLoad / (psDx * psDy);
+                            stressBuilder = stressBuilder.WithSource(uniformDensity);
+                        }
+                        result = stressBuilder.Solve(maxIterations: 20000, tolerance: 1e-12);
                         break;
                 }
             });
 
             _result = SanitizeSimulationResult(result);
+            _activeSimulationDt = config.module == PhysicsModule.HeatTransfer ? heatTransferSolve.dt : config.dt;
             _volumeView.ApplyMaterialTheme(material);
             _volumeView.ConfigureForModule(config.module);
             _volumeView.ConfigureGrid(config.module, config.nx, config.ny);
@@ -605,7 +678,7 @@ namespace EngineeringToolbox.Demo
             if (_result != null && _result.Timeline != null && _result.Timeline.Count > 0)
             {
                 _timeline = SimulationTimeline.FromResult(_result,
-                    dt: config.dt,
+                    dt: _activeSimulationDt,
                     dx: config.width / config.nx,
                     dy: config.height / config.ny);
 
@@ -651,7 +724,7 @@ namespace EngineeringToolbox.Demo
             BuildChartSeries();
 
             var safeResultRange = GetSafeResultRange(_result);
-            Debug.Log($"[EngineeringToolbox] {config.module} complete - material={material.Name}, max={safeResultRange.max:F3}, min={safeResultRange.min:F3}, iterations={_result?.Iterations}, timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={config.dt}, steps={config.steps}, globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
+            Debug.Log($"[EngineeringToolbox] {config.module} complete - material={material.Name}, max={safeResultRange.max:F3}, min={safeResultRange.min:F3}, iterations={_result?.Iterations}, timeline2D={_timeline?.Count ?? 0} frames, timeline1D={_timeline1D?.Count ?? 0} frames, dt={_activeSimulationDt:F6}, steps={_result?.Iterations ?? config.steps}, globalMin={_globalMin:F3}, globalMax={_globalMax:F3}");
 
             UpdateVisualization();
 
@@ -742,8 +815,9 @@ namespace EngineeringToolbox.Demo
                     break;
 
                 case PhysicsModule.BeamStress:
-                    Render1DProfile(_result.Values, resultRange.min, resultRange.max);
-                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    var beamRange = ComputeFiniteMinMax(_result.Values);
+                    Render1DProfile(_result.Values, beamRange.min, beamRange.max);
+                    UpdateLegend(beamRange.min, beamRange.max, legendTitle, legendUnit);
                     _vectorOverlay.ClearWorld();
                     break;
 
@@ -766,10 +840,17 @@ namespace EngineeringToolbox.Demo
                     {
                         _activeVectorFieldX = _result.Vx;
                         _activeVectorFieldY = _result.Vy;
-                        _vectorOverlay.SetVisible(true);
-                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
-                            _activeVectorFieldX, _activeVectorFieldY,
-                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        if (_playing)
+                        {
+                            UpdateFlowVectorAnimation();
+                        }
+                        else
+                        {
+                            _vectorOverlay.SetVisible(true);
+                            _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                                _activeVectorFieldX, _activeVectorFieldY,
+                                _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        }
                     }
                     else
                     {
@@ -796,10 +877,17 @@ namespace EngineeringToolbox.Demo
                     {
                         _activeVectorFieldX = _result.Vx;
                         _activeVectorFieldY = _result.Vy;
-                        _vectorOverlay.SetVisible(true);
-                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
-                            _activeVectorFieldX, _activeVectorFieldY,
-                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1), _result.CylinderMask, 0f);
+                        if (_playing)
+                        {
+                            UpdateFlowVectorAnimation(_result.CylinderMask);
+                        }
+                        else
+                        {
+                            _vectorOverlay.SetVisible(true);
+                            _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                                _activeVectorFieldX, _activeVectorFieldY,
+                                _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1), _result.CylinderMask, 0f);
+                        }
                     }
                     else
                     {
@@ -814,10 +902,17 @@ namespace EngineeringToolbox.Demo
                     {
                         _activeVectorFieldX = _result.Bx;
                         _activeVectorFieldY = _result.By;
-                        _vectorOverlay.SetVisible(true);
-                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
-                            _activeVectorFieldX, _activeVectorFieldY,
-                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        if (_playing)
+                        {
+                            UpdateFlowVectorAnimation();
+                        }
+                        else
+                        {
+                            _vectorOverlay.SetVisible(true);
+                            _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                                _activeVectorFieldX, _activeVectorFieldY,
+                                _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        }
                     }
                     else
                     {
@@ -827,16 +922,36 @@ namespace EngineeringToolbox.Demo
 
                 case PhysicsModule.PlaneStress:
                     double[,] stressField = _result.StressXX ?? _result.Field;
-                    Render2DField(stressField);
-                    UpdateLegend(resultRange.min, resultRange.max, legendTitle, legendUnit);
+                    var stressRange = ComputeFiniteMinMax(stressField);
+                    bool hasStressContrast = double.IsFinite(stressRange.min)
+                        && double.IsFinite(stressRange.max)
+                        && System.Math.Abs(stressRange.max - stressRange.min) >= 1e-12;
+                    if (hasStressContrast)
+                    {
+                        Render2DField(stressField, stressRange.min, stressRange.max);
+                        UpdateLegend(stressRange.min, stressRange.max, legendTitle, legendUnit);
+                    }
+                    else
+                    {
+                        double[,] fallbackField = _result.Field ?? stressField;
+                        var fallbackRange = ComputeFiniteMinMax(fallbackField);
+                        Render2DField(fallbackField, fallbackRange.min, fallbackRange.max);
+                        UpdateLegend(fallbackRange.min, fallbackRange.max, legendTitle, legendUnit);
+                    }
                     if (_showVectors && _result.Ux != null && _result.Uy != null)
                     {
-                        _activeVectorFieldX = _result.Ux;
-                        _activeVectorFieldY = _result.Uy;
-                        _vectorOverlay.SetVisible(true);
-                        _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
-                            _activeVectorFieldX, _activeVectorFieldY,
-                            _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        ScaleVectorFieldForDisplay(_result.Ux, _result.Uy, 1e-5, out _activeVectorFieldX, out _activeVectorFieldY);
+                        if (_playing)
+                        {
+                            UpdateFlowVectorAnimation();
+                        }
+                        else
+                        {
+                            _vectorOverlay.SetVisible(true);
+                            _vectorOverlay.RenderWorld(_volumeView.VectorAnchor, _volumeView.SurfaceSize,
+                                _activeVectorFieldX, _activeVectorFieldY,
+                                _activeVectorFieldX.GetLength(0), _activeVectorFieldX.GetLength(1));
+                        }
                     }
                     else
                     {
@@ -847,6 +962,37 @@ namespace EngineeringToolbox.Demo
 
             UpdateChart();
             UpdateInfoText();
+        }
+
+        private (double dt, int steps) GetHeatTransferSolveParameters(CSharpNumerics.Physics.Materials.Engineering.EngineeringMaterial material)
+        {
+            const double DemoHeatTransferDtCap = 0.001;
+            double requestedDt = config.dt;
+            int requestedSteps = Mathf.Max(1, config.steps);
+            double dx = config.width / config.nx;
+            double dy = config.height / config.ny;
+
+            if (requestedDt <= 0.0 || dx <= 0.0 || dy <= 0.0)
+            {
+                return (requestedDt, requestedSteps);
+            }
+
+            double volumetricHeatCapacity = material.Density * material.SpecificHeat;
+            if (material.ThermalConductivity <= 0.0 || volumetricHeatCapacity <= 0.0)
+            {
+                return (requestedDt, requestedSteps);
+            }
+
+            double alpha = material.ThermalConductivity / volumetricHeatCapacity;
+            double inverseSpacing = (1.0 / (dx * dx)) + (1.0 / (dy * dy));
+            double stableDt = 0.25 / (alpha * inverseSpacing);
+            double effectiveDt = System.Math.Min(stableDt, DemoHeatTransferDtCap);
+            if (!double.IsFinite(effectiveDt) || effectiveDt <= 0.0 || requestedDt <= effectiveDt)
+            {
+                return (requestedDt, requestedSteps);
+            }
+
+            return (effectiveDt, requestedSteps);
         }
 
         private void BuildChartSeries()
@@ -904,6 +1050,40 @@ namespace EngineeringToolbox.Demo
             BuildGradientVectorField(field, invertDirection, out _activeVectorFieldX, out _activeVectorFieldY);
         }
 
+        private static void ScaleVectorFieldForDisplay(double[,] sourceX, double[,] sourceY, double minimumMagnitude, out double[,] scaledX, out double[,] scaledY)
+        {
+            int width = sourceX.GetLength(0);
+            int height = sourceX.GetLength(1);
+            scaledX = sourceX;
+            scaledY = sourceY;
+
+            double maxMagnitude = 0.0;
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                double magnitude = System.Math.Sqrt(sourceX[x, y] * sourceX[x, y] + sourceY[x, y] * sourceY[x, y]);
+                if (magnitude > maxMagnitude)
+                {
+                    maxMagnitude = magnitude;
+                }
+            }
+
+            if (!double.IsFinite(maxMagnitude) || maxMagnitude <= 0.0 || maxMagnitude >= minimumMagnitude)
+            {
+                return;
+            }
+
+            double scale = minimumMagnitude / maxMagnitude;
+            scaledX = new double[width, height];
+            scaledY = new double[width, height];
+            for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                scaledX[x, y] = sourceX[x, y] * scale;
+                scaledY[x, y] = sourceY[x, y] * scale;
+            }
+        }
+
         private void UpdateElectrostaticVectorAnimation()
         {
             if (_activeVectorFieldX == null || _activeVectorFieldY == null || _volumeView == null)
@@ -920,6 +1100,26 @@ namespace EngineeringToolbox.Demo
                 _activeVectorFieldY,
                 _activeVectorFieldX.GetLength(0),
                 _activeVectorFieldX.GetLength(1),
+                phase);
+        }
+
+        private void UpdateFlowVectorAnimation(bool[,] mask = null)
+        {
+            if (_activeVectorFieldX == null || _activeVectorFieldY == null || _volumeView == null)
+            {
+                return;
+            }
+
+            float phase = Mathf.Repeat(Time.time * 0.8f, 1f);
+            _vectorOverlay.SetVisible(true);
+            _vectorOverlay.RenderWorld(
+                _volumeView.VectorAnchor,
+                _volumeView.SurfaceSize,
+                _activeVectorFieldX,
+                _activeVectorFieldY,
+                _activeVectorFieldX.GetLength(0),
+                _activeVectorFieldX.GetLength(1),
+                mask,
                 phase);
         }
 
@@ -1179,6 +1379,19 @@ namespace EngineeringToolbox.Demo
                 return (0.0, 1.0);
             }
 
+            // For PlaneStress, always compute from actual stress data to avoid
+            // the solver's vonMises min=0 collapsing contrast.
+            if (result.Type == MultiphysicsType.PlaneStress && result.StressXX != null)
+            {
+                return ComputeFiniteMinMax(result.StressXX);
+            }
+
+            // For BeamStress, compute from actual values to use full gradient range.
+            if (result.Type == MultiphysicsType.BeamStress && result.Values != null && result.Values.Length > 0)
+            {
+                return ComputeFiniteMinMax(result.Values);
+            }
+
             double safeMin = SafeScalar(result.MinValue, double.NaN);
             double safeMax = SafeScalar(result.MaxValue, double.NaN);
             if (!double.IsNaN(safeMin) && !double.IsNaN(safeMax) && safeMax >= safeMin)
@@ -1239,7 +1452,7 @@ namespace EngineeringToolbox.Demo
             _chartImage.texture = RenderChartTexture(_chartSeries, highlightIndex);
 
             double currentValue = _chartSeries[highlightIndex];
-            double endTime = (_chartSeries.Length - 1) * config.dt;
+            double endTime = (_chartSeries.Length - 1) * _activeSimulationDt;
             _chartFooterText.text = $"0-{FormatNumericValue(endTime)} s  |  current {FormatNumericValue(currentValue)} {GetChartUnit()}";
         }
 
@@ -1344,8 +1557,16 @@ namespace EngineeringToolbox.Demo
             double maxValue = double.MinValue;
             for (int index = 0; index < series.Length; index++)
             {
-                minValue = System.Math.Min(minValue, series[index]);
-                maxValue = System.Math.Max(maxValue, series[index]);
+                double val = series[index];
+                if (!double.IsFinite(val)) continue;
+                minValue = System.Math.Min(minValue, val);
+                maxValue = System.Math.Max(maxValue, val);
+            }
+
+            if (minValue == double.MaxValue || maxValue == double.MinValue)
+            {
+                minValue = 0.0;
+                maxValue = 1.0;
             }
 
             if (System.Math.Abs(maxValue - minValue) < 1e-9)
@@ -1359,7 +1580,9 @@ namespace EngineeringToolbox.Demo
             for (int index = 0; index < series.Length; index++)
             {
                 float xT = series.Length == 1 ? 0f : index / (float)(series.Length - 1);
-                float normalizedValue = Mathf.InverseLerp((float)minValue, (float)maxValue, (float)series[index]);
+                double val = series[index];
+                float clampedVal = double.IsFinite(val) ? (float)val : (float)minValue;
+                float normalizedValue = Mathf.InverseLerp((float)minValue, (float)maxValue, clampedVal);
                 int x = Mathf.RoundToInt(Mathf.Lerp(plotMinX, plotMaxX, xT));
                 int y = Mathf.RoundToInt(Mathf.Lerp(plotMinY, plotMaxY, normalizedValue));
 
@@ -1374,7 +1597,9 @@ namespace EngineeringToolbox.Demo
 
             highlightedIndex = Mathf.Clamp(highlightedIndex, 0, series.Length - 1);
             float highlightedXT = series.Length == 1 ? 0f : highlightedIndex / (float)(series.Length - 1);
-            float highlightedYT = Mathf.InverseLerp((float)minValue, (float)maxValue, (float)series[highlightedIndex]);
+            double highlightVal = series[highlightedIndex];
+            float clampedHighlight = double.IsFinite(highlightVal) ? (float)highlightVal : (float)minValue;
+            float highlightedYT = Mathf.InverseLerp((float)minValue, (float)maxValue, clampedHighlight);
             int highlightX = Mathf.RoundToInt(Mathf.Lerp(plotMinX, plotMaxX, highlightedXT));
             int highlightY = Mathf.RoundToInt(Mathf.Lerp(plotMinY, plotMaxY, highlightedYT));
             DrawCircle(_chartTexture, highlightX, highlightY, 4, markerColor);
@@ -1476,8 +1701,7 @@ namespace EngineeringToolbox.Demo
 
         private void UpdateStatusBar()
         {
-            string playbackLabel = CanPlayCurrentModule() ? (_playing ? "Pause" : "Play") : "Static";
-            string status = $"Category + submodel are selected in the HUD  |  Space: {playbackLabel}  |  Q/E: cycle submodel  |  C: reset view  |  F12: screenshot";
+            string status = "";
             _statusText.text = status;
         }
 

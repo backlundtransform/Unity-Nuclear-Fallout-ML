@@ -288,15 +288,15 @@ namespace EngineeringToolbox.Core
             switch (discipline)
             {
                 case PhysicsDiscipline.Thermodynamics:
-                    return "Thermodynamics";
+                    return "Thermo";
                 case PhysicsDiscipline.SolidMechanics:
-                    return "Solid Mechanics";
+                    return "Solids";
                 case PhysicsDiscipline.Electromagnetism:
-                    return "Electromagnetism";
+                    return "EM";
                 case PhysicsDiscipline.FluidDynamics:
-                    return "Fluid Dynamics";
+                    return "Fluids";
                 default:
-                    return "Thermodynamics";
+                    return "Thermo";
             }
         }
 

@@ -55,10 +55,10 @@ namespace EngineeringToolbox.Editor
 
         private static readonly string[] SettingsTabs =
         {
-            "Thermodynamics",
-            "Solid Mechanics",
-            "Electromagnetism",
-            "Fluid Dynamics"
+            "Thermo",
+            "Solids",
+            "EM",
+            "Fluids"
         };
 
         private void OnEnable()

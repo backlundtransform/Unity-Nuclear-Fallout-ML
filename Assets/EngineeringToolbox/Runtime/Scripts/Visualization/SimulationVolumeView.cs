@@ -21,6 +21,7 @@ namespace EngineeringToolbox.Visualization
     {
         private static readonly Vector3 DefaultVolumePosition = Vector3.zero;
         private static readonly Vector3 DefaultVolumeRotation = new Vector3(-90f, 30f, -100f);
+        private const bool DefaultContainerVisible = false;
 
         private const float VolumeSize = 2.8f;
         private const float EdgeThickness = 0.028f;
@@ -105,6 +106,14 @@ namespace EngineeringToolbox.Visualization
             CreateFrame(_volumeRoot);
             CreateSlice(_volumeRoot);
             CreateMoveGizmo(_gizmoRoot);
+            SetContainerVisible(DefaultContainerVisible);
+        }
+
+        public void SetContainerVisible(bool isVisible)
+        {
+            SetRenderersVisible(_frameRenderers, isVisible);
+            SetRenderersVisible(_cornerRenderers, isVisible);
+            SetRenderersVisible(_accentRenderers, isVisible);
         }
 
         public void ConfigureForModule(PhysicsModule module)
@@ -129,7 +138,12 @@ namespace EngineeringToolbox.Visualization
 
         public void ConfigureGrid(PhysicsModule module, int xSegments, int ySegments)
         {
-            bool showGrid = module == PhysicsModule.HeatTransfer || module == PhysicsModule.Electrostatics;
+            bool showGrid = module == PhysicsModule.HeatTransfer
+                || module == PhysicsModule.Electrostatics
+                || module == PhysicsModule.FluidFlow2D
+                || module == PhysicsModule.CylinderFlow
+                || module == PhysicsModule.Magnetostatics
+                || module == PhysicsModule.PlaneStress;
             if (!showGrid || _gridAnchor == null)
             {
                 SetGridActive(false, 0);
@@ -694,6 +708,17 @@ namespace EngineeringToolbox.Visualization
                 if (renderers[i] != null)
                 {
                     renderers[i].sharedMaterial = material;
+                }
+            }
+        }
+
+        private static void SetRenderersVisible(List<Renderer> renderers, bool isVisible)
+        {
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                if (renderers[i] != null)
+                {
+                    renderers[i].enabled = isVisible;
                 }
             }
         }
